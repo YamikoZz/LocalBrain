@@ -1,0 +1,162 @@
+"""Build a pretraining token stream from code + English parquet shards.
+
+Code: codeparrot/github-code-clean rows, kept only for permissive licenses.
+English: FineWeb-Edu rows with a high educational score.
+Output matches TokenData: train.bin / val.bin (uint16), tokenizer.json, meta.json.
+"""
+import hashlib
+import json
+import os
+import random
+import tempfile
+from collections import Counter
+from pathlib import Path
+
+import numpy as np
+from tokenizers import Tokenizer, decoders, models, pre_tokenizers, trainers
+
+from .data import SPECIAL, fingerprint
+
+PERMISSIVE = {"mit", "apache-2.0", "bsd-3-clause", "bsd-2-clause", "isc", "unlicense", "cc0-1.0"}
+# Languages we train and evaluate first get every file; others are subsampled.
+FOCUS = {"Python", "JavaScript", "TypeScript"}
+SKIP = {"HTML", "CSS", "TeX", "Makefile", "CMake", "Batchfile", "Dockerfile", "Visual Basic",
+        "Assembly", "FORTRAN"}
+
+
+def _clean_code(row):
+    code = row["code"]
+    if row["license"] not in PERMISSIVE or row["language"] in SKIP:
+        return None
+    if not 64 <= len(code) <= 32768:
+        return None
+    lines = code.split("\n")
+    if max(map(len, lines)) > 400 or len(code) / max(1, len(lines)) > 120:
+        return None  # minified or generated
+    ascii_share = sum(c < 128 for c in code.encode("utf-8", "replace")) / max(1, len(code))
+    if ascii_share < 0.97:
+        return None
+    return code
+
+
+def iter_documents(code_files, english_files, english_share, other_share, seed):
+    import pyarrow.parquet as pq
+    rng = random.Random(seed)
+    seen = set()
+
+    def unique(text):
+        key = hashlib.sha1(" ".join(text.split()).encode("utf-8", "replace")).digest()
+        if key in seen:
+            return False
+        seen.add(key)
+        return True
+
+    def code_rows():
+        for path in code_files:
+            pf = pq.ParquetFile(path)
+            for batch in pf.iter_batches(batch_size=2048, columns=["code", "language", "license"]):
+                for row in batch.to_pylist():
+                    if row["language"] not in FOCUS and rng.random() > other_share:
+                        continue
+                    code = _clean_code(row)
+                    if code and unique(code):
+                        yield "code:" + row["language"], code
+
+    def english_rows():
+        for path in english_files:
+            pf = pq.ParquetFile(path)
+            for batch in pf.iter_batches(batch_size=1024, columns=["text", "int_score"]):
+                for row in batch.to_pylist():
+                    if row["int_score"] >= 4 and 200 <= len(row["text"]) <= 20000 and unique(row["text"]):
+                        yield "english", row["text"]
+
+    code_iter, english_iter = code_rows(), english_rows()
+    code_chars = english_chars = 0
+    while code_iter:
+        want_english = english_iter and (not code_iter or
+                                         english_chars < english_share * (code_chars + english_chars + 1))
+        source = english_iter if want_english else code_iter
+        item = next(source, None)
+        if item is None:
+            if source is code_iter:
+                return  # English only supplements code; stop when code runs out
+            english_iter = None
+            continue
+        if item[0] == "english":
+            english_chars += len(item[1])
+        else:
+            code_chars += len(item[1])
+        yield item
+
+
+def is_val(text):
+    return hashlib.sha1(text[:2000].encode("utf-8", "replace")).digest()[0] < 2  # ~0.8%
+
+
+def build_corpus(code_files, english_files, output, vocab_size=16384, max_tokens=600_000_000,
+                 english_share=0.15, other_share=0.35, tokenizer_chars=150_000_000, seed=7):
+    output = Path(output)
+    if output.exists():
+        raise ValueError("Output exists; choose a new directory")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=output.parent) as scratch:
+        folder = Path(scratch) / "dataset"
+        folder.mkdir()
+        # 1) Tokenizer from the first documents of the (deterministic) mixed stream.
+        tok = Tokenizer(models.BPE(unk_token="[UNK]"))
+        tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
+        tok.decoder = decoders.ByteLevel()
+        trainer = trainers.BpeTrainer(vocab_size=vocab_size, min_frequency=2, special_tokens=SPECIAL,
+                                      initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
+                                      show_progress=False)
+
+        def sample():
+            total = 0
+            for _, text in iter_documents(code_files, english_files, english_share, other_share, seed):
+                if is_val(text):
+                    continue
+                total += len(text)
+                yield text
+                if total >= tokenizer_chars:
+                    return
+
+        tok.train_from_iterator(sample(), trainer=trainer)
+        tok.save(str(folder / "tokenizer.json"))
+        eos = tok.token_to_id("[EOS]")
+        # 2) Encode the full stream.
+        counts, mix, docs = {"train": 0, "val": 0}, Counter(), 0
+        streams = {s: (folder / f"{s}.bin").open("wb") for s in counts}
+        batch = []
+
+        def flush():
+            for (split, kind), enc in zip([(s, k) for s, k, _ in batch],
+                                          tok.encode_batch([t for _, _, t in batch])):
+                ids = np.asarray(enc.ids + [eos], dtype="<u2")
+                ids.tofile(streams[split])
+                counts[split] += len(ids)
+                mix[kind] += len(ids)
+            batch.clear()
+
+        try:
+            for kind, text in iter_documents(code_files, english_files, english_share, other_share, seed):
+                batch.append(("val" if is_val(text) else "train", kind, text))
+                docs += 1
+                if len(batch) >= 4096:
+                    flush()
+                    print(json.dumps({"docs": docs, "tokens": counts}), flush=True)
+                    if counts["train"] >= max_tokens:
+                        break
+            flush()
+        finally:
+            for s in streams.values():
+                s.close()
+        meta = {"kind": "language", "vocab_size": tok.get_vocab_size(), "dtype": "<u2",
+                "tokens": counts, "documents": docs, "mixture_tokens": dict(mix.most_common()),
+                "tokenizer_sha256": fingerprint(folder / "tokenizer.json"),
+                "licenses_kept": sorted(PERMISSIVE), "english_filter": "FineWeb-Edu int_score >= 4",
+                "sources": [{"path": str(Path(p).resolve()), "bytes": Path(p).stat().st_size}
+                            for p in list(code_files) + list(english_files)],
+                "split": "SHA1 of document prefix, ~0.8% validation"}
+        (folder / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+        os.replace(folder, output)
+    return meta

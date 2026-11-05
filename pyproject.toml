@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "localbrain"
+version = "0.1.0"
+description = "Train a small language model from scratch and use a local knowledge store."
+requires-python = ">=3.11"
+dependencies = ["torch>=2.9,<3", "numpy>=2", "tokenizers>=0.22,<0.23"]
+
+[project.optional-dependencies]
+pdf = ["pypdf>=6,<7"]
+
+[project.scripts]
+localbrain = "localbrain.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["localbrain*"]

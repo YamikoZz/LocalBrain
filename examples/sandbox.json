@@ -1,0 +1,4 @@
+{
+  "code": "print(2 + 3)",
+  "timeout": 10
+}
