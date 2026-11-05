@@ -5,5 +5,8 @@ pushd "%~dp0"
 echo.
 echo Last log lines:
 powershell -NoProfile -Command "Get-Content workspace\run-code-pretrain.log -Tail 3"
+echo.
+echo Pipeline (SFT + evaluation after pretraining):
+powershell -NoProfile -Command "if (Test-Path workspace\pipeline.log) { Get-Content workspace\pipeline.log -Tail 4 }"
 popd
 pause

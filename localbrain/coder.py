@@ -63,10 +63,13 @@ class CodeModel:
 
 
 def clean(text):
+    """Return the code from a reply: the first fenced block if any, else the whole text."""
     text = text.strip("\n")
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1] if "\n" in text else ""
-    return text.split("```")[0].rstrip() + "\n"
+    if "```" in text:
+        block = text.split("```", 1)[1]
+        block = block.split("\n", 1)[1] if "\n" in block else ""
+        return block.split("```")[0].rstrip() + "\n"
+    return text.rstrip() + "\n"
 
 
 def repair_prompt(task_prompt, code, message):

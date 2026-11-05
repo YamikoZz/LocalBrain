@@ -105,6 +105,10 @@ def parser():
     code.add_argument("--run", default="workspace/run-code-sft")
     code.add_argument("--samples", type=int, default=16)
     code.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
+    play = sub.add_parser("playground", help="Interactive: type code, the model continues it")
+    play.add_argument("--run", default="workspace/run-code-pretrain")
+    play.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
+    play.add_argument("--temperature", type=float, default=0.6)
     tool = sub.add_parser("tool", help="Explicit tool invocation, never auto-executes model text")
     tool.add_argument("name")
     tool.add_argument("--args", default="{}", help="JSON arguments")
@@ -181,6 +185,9 @@ def main():
                           "note": "No --example given, so the code was not tested. Add examples to verify it."}
             print(result["code"])
             emit({k: v for k, v in result.items() if k != "code"})
+        elif args.command == "playground":
+            from .playground import main as playground
+            playground(args.run, args.device, temperature=args.temperature)
         elif args.command == "generate":
             from .train import generate
             emit({"text": generate(args.run, args.prompt, args.max_tokens,
