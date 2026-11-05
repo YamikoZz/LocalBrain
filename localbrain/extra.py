@@ -5,11 +5,10 @@ Security (defensive / educational):
   * OWASP Cheat Sheet Series and Web Security Testing Guide (CC-BY-SA-4.0)
   * MITRE CWE weakness list (descriptions, mitigations, vulnerable-vs-fixed examples)
   * security-themed FineWeb-Edu articles already on disk
-Offensive security (malware / attack tooling / training lessons):
-  * malware analysis documents (static + dynamic analysis notes, RE write-ups)
-  * attack toolkit and red-team / adversary knowledge (C2, exploits, TTPs)
-  * hand-written teaching pairs for malware analysis and offensive tooling
 Also builds CWE question/answer pairs for SFT.
+
+Scope: defensive and educational only (how weaknesses work and how to prevent them).
+No malware source, exploit code, or attack-tooling collection lives here by design.
 """
 import json
 import re
@@ -17,31 +16,6 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 FIVEM_LICENSES = {"mit", "gpl-3.0", "lgpl-3.0"}
-
-
-def offensive_collect(root, output, min_chars=60):
-    """Collect offensive-security markdown documents as path/text JSONL.
-
-    Each immediate subdirectory of ``root`` is treated as one topic kind
-    (e.g. malware, attack-toolkits, red-team, c2, threat-intel) and every ``*.md``
-    below it becomes one training document. Paths keep the ``offensive/<kind>/...``
-    shape so the annealing mix can name them like the security extras.
-    """
-    root, counts = Path(root), {}
-    if not root.is_dir():
-        raise ValueError(f"Offensive security root not found: {root}")
-    with Path(output).open("w", encoding="utf-8") as out:
-        def write(kind, path, text):
-            out.write(json.dumps({"path": path, "text": text}, ensure_ascii=False) + "\n")
-            counts[kind] = counts.get(kind, 0) + 1
-
-        for folder, kind in ((p, p.name) for p in sorted(root.iterdir()) if p.is_dir()):
-            for md in sorted(folder.rglob("*.md")):
-                text = md.read_text(encoding="utf-8", errors="replace")
-                if len(text.strip()) < min_chars:
-                    continue
-                write(kind, f"offensive/{md.relative_to(root).as_posix()}", text)
-    return counts
 
 
 def fivem_collect(root, output):
@@ -146,63 +120,3 @@ def cwe_pairs(security_root):
                 tips = " ".join(e["mitigations"][:3])
                 yield {"question": f"How can I prevent {e['name'].lower()} in my code?",
                        "answer": f"{short} To prevent it: {tips}", "source": "security-cwe"}
-
-
-def offensive_lessons():
-    """Hand-written teaching pairs: malware analysis and offensive tooling knowledge."""
-    yield {"question": "What is malware analysis?",
-           "answer": "Malware analysis is the work of understanding what a malicious program does "
-                      "before defenders can detect or remove it. Analysts usually begin with static "
-                      "analysis: file type, cryptographic hash, entropy, byte patterns, printable "
-                      "strings and disassembly. When static analysis is not enough they continue with "
-                      "dynamic analysis by running the sample in a controlled sandbox and watching "
-                      "processes, file system changes, network traffic and persistence mechanisms. "
-                      "The findings become indicators of compromise and inputs for detection and "
-                      "mitigation rules.",
-           "source": "offensive-lesson"}
-    yield {"question": "What is the difference between a vulnerability, an exploit and malware?",
-           "answer": "A vulnerability is a weakness in software or configuration. An exploit is a piece "
-                      "of code or technique that uses that weakness. Malware is the malicious payload "
-                      "or code delivered through an exploit or other infection vector. Defenders reduce "
-                      "risk by fixing vulnerabilities, monitoring for exploits and building malware "
-                      "detection and response playbooks.",
-           "source": "offensive-lesson"}
-    yield {"question": "What is the MITRE ATT&CK framework?",
-           "answer": "The MITRE ATT&CK framework is a knowledge base of real-world adversary tactics and "
-                      "techniques. Tactics describe the attacker's goal at each stage, techniques describe "
-                      "how the goal is achieved, and the framework maps them to platforms and data sources. "
-                      "Threat teams use ATT&CK to describe adversary behavior, share intelligence and "
-                      "align detection engineering with the techniques being used.",
-           "source": "offensive-lesson"}
-    yield {"question": "What is a command-and-control server?",
-           "answer": "Command-and-control, or C2, is the infrastructure a compromised system uses to "
-                      "receive instructions from the attacker and exfiltrate data. C2 traffic can be direct "
-                      "or through a chain of proxies, and defenders detect it through network signatures, "
-                      "domain and IP reputation, TLS fingerprinting and behavioral monitoring.",
-           "source": "offensive-lesson"}
-    yield {"question": "What is a zero-day exploit?",
-           "answer": "A zero-day exploit targets a vulnerability that the vendor has not patched yet, so "
-                      "defenders have no defense available before the fix ships. Zero-days are expensive and "
-                      "rare in real operations, but they are the most dangerous class of offensive capability "
-                      "because both the vulnerability and the exploit are unknown ahead of time.",
-           "source": "offensive-lesson"}
-    yield {"question": "How do penetration testers use the Metasploit Framework?",
-           "answer": "The Metasploit Framework is an open-source platform of offensive security modules. "
-                      "Testers select a target and a module, set the required options such as the local "
-                      "exploit and the payload, and run it inside an authorized lab or approved target. "
-                      "The framework includes auxiliary, exploit and post-exploitation modules, and its "
-                      "value is the repeatable workflow: pick technique, configure, execute, document.",
-           "source": "offensive-lesson"}
-    yield {"question": "What is a reverse shell?",
-           "answer": "A reverse shell is a payload that makes an attacked machine dial back to the attacker "
-                      "instead of listening on a port the attacker must reach. It is a common technique "
-                      "because outbound connections are usually allowed where inbound ones are filtered, "
-                      "and defenders hunt for the beaconing pattern and the parent process relationship.",
-           "source": "offensive-lesson"}
-    yield {"question": "What is threat modeling?",
-           "answer": "Threat modeling is the proactive practice of identifying which threats could affect a "
-                      "system and how to reduce them before code or infrastructure ships. Approaches such as "
-                      "STRIDE decompose threats into spoofing, tampering, repudiation, information disclosure, "
-                      "denial of service and elevation of privilege, then map mitigations like threat models, "
-                      "input validation and least privilege.",
-           "source": "offensive-lesson"}

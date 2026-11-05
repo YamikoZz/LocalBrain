@@ -177,6 +177,41 @@ Open-Model.cmd จึงมีไว้ทดลองดูผลฝึก ไ�
 ดูผล held-out loss และตัวอย่างคำตอบจริงใน workspace/run-instruction/evaluation.json
 loss ไม่ใช่คะแนนความถูกต้องของข้อเท็จจริง และไม่ใช่หลักฐานว่าพร้อมใช้เป็นผู้ช่วยทั่วไป
 
+## ฝึกความรู้ด้านความมั่นใจทางไซเบอร์: Malware และชุดเครื่องมือโจมตี
+
+มี source ฝึกเพิ่มเติมแนะนำ (`localbrain/extra.py`) สำหรับ defensive security, FiveM Lua และ offensive security (malware + attack toolkits) จาก subfolder ของเอกสาร markdown
+
+### รวบรวม offensive-security documents (malware analysis + attack toolkits)
+
+```powershell
+.\.venv\Scripts\python.exe -m localbrain collect-offensive --root D:\model ai test\security-offensive --output workspace/raw-offensive/offensive.jsonl
+```
+
+แต่ละ immediate subfolder ของ root คือ topic kind (เช่น malware, attack-toolkits, red-team, c2, threat-intel)
+แล้วเก็บ `*.md` ทั้งหมดเป็น JSONL แบบ `{"path": "...", "text": "..."}` โดย path มี prefix `offensive/...`
+
+### ใส่ offensive source ใน final anneal mix
+
+```powershell
+.\.venv\Scripts\python.exe -m localbrain build-anneal --tokenizer workspace/run-code-pretrain/tokenizer.json --code <code-parquet> --pyedu <pyedu-parquet> --english <fineweb-parquet> --output workspace/dataset-anneal-offensive --extra offensive=workspace/raw-offensive/offensive.jsonl --extra-share 0.10
+```
+
+แล้วเทรนจาก checkpoint ที่ผ่าน pretrain:
+
+```powershell
+.\.venv\Scripts\python.exe -m localbrain train --data workspace/dataset-anneal-offensive --run workspace/run-code-anneal-offensive --config configs/code-anneal.json --init workspace/run-code-pretrain/latest.pt --steps 4000
+```
+
+### บทเรียนฝึก (SFT lessons) ด้าน malware / attack tooling
+
+`localbrain/extra.py` มี `offensive_lessons()` ให้สร้าง question/answer pairs สำหรับฝึกสมองตอบ:
+
+```powershell
+.\.venv\Scripts\python.exe -c "from localbrain.extra import offensive_lessons; import json; [print(json.dumps(r, ensure_ascii=False)) for r in offensive_lessons()]" > workspace/raw-offensive/offensive-lessons.jsonl
+.\.venv\Scripts\python.exe -m localbrain prepare-instructions workspace/raw-offensive/offensive-lessons.jsonl --config configs/instruction.json --tokenizer workspace/run-instruction/tokenizer.json --output workspace/dataset-instruction-offensive
+.\.venv\Scripts\python.exe -m localbrain train --data workspace/dataset-instruction-offensive --run workspace/run-instruction-offensive --config configs/instruction.json --steps 6000
+```
+
 ## คลังความรู้และถามตอบ
 
 หาก PowerShell แสดงภาษาไทยเป็นสี่เหลี่ยม ให้ดับเบิลคลิก **Open-Chat.cmd**

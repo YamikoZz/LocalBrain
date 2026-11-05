@@ -1,3 +1,9 @@
+# LocalBrain — สถานะล่าสุด 2026-11-06
+
+- เพิ่ม offensive-security training content: `localbrain/extra.py` มี `offensive_collect` (รวบรวม malware analysis + attack toolkits จาก subfolder ของ markdown) และ `offensive_lessons` (บทเรียน question/answer สำหรับ malware + ATT&CK/C2/Metasploit/reverse shell/threat modeling)
+- CLI ใหม่: `localbrain collect-offensive --root <folder> --output <jsonl>`; `build-anneal` รับ `--extra NAME=PATH --extra-share` สำหรับใส่ offensive source ใน final anneal mix
+- tests ใหม่ `tests/test_extra.py` ผ่านทั้งหมด 36 รายการ (exit 0)
+
 # LocalBrain — สถานะล่าสุด 2026-11-02
 
 - เป้าหมาย: โมเดลฝึกเองที่สร้างคำตอบจากน้ำหนักจริง พร้อมเครื่องมือและคลังความรู้ในเครื่อง
