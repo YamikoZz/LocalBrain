@@ -24,9 +24,9 @@ SKIP = {"HTML", "CSS", "TeX", "Makefile", "CMake", "Batchfile", "Dockerfile", "V
         "Assembly", "FORTRAN"}
 
 
-def _clean_code(row):
+def _clean_code(row, skip=SKIP):
     code = row["code"]
-    if row["license"] not in PERMISSIVE or row["language"] in SKIP:
+    if row["license"] not in PERMISSIVE or row["language"] in skip:
         return None
     if not 64 <= len(code) <= 32768:
         return None
@@ -163,7 +163,7 @@ def build_corpus(code_files, english_files, output, vocab_size=16384, max_tokens
 
 
 def build_anneal(output, tokenizer, code_files, pyedu_files, english_files, max_tokens=80_000_000,
-                 shares=None, seed=17):
+                 shares=None, seed=17, personal_file=None, personal_repeat=4):
     """High-quality mix for the final (learning-rate decay) phase, using an existing tokenizer.
 
     Default shares by characters: python-edu 35%, English 30%, GitHub code 20%,
@@ -172,7 +172,8 @@ def build_anneal(output, tokenizer, code_files, pyedu_files, english_files, max_
     import pyarrow.parquet as pq
     from .chatdata import code_skills
     from .instruction import prompt_text
-    shares = shares or {"pyedu": 0.35, "english": 0.30, "code": 0.20, "chat": 0.15}
+    shares = shares or ({"pyedu": 0.25, "english": 0.25, "code": 0.25, "chat": 0.13, "personal": 0.12}
+                        if personal_file else {"pyedu": 0.35, "english": 0.30, "code": 0.20, "chat": 0.15})
     output = Path(output)
     if output.exists():
         raise ValueError("Output exists; choose a new directory")
@@ -195,9 +196,24 @@ def build_anneal(output, tokenizer, code_files, pyedu_files, english_files, max_
                         yield row["text"]
 
     def code():
-        # Skip the start of the shards that pretraining already saw most of; shuffle-free but later rows.
-        for kind, text in iter_documents(code_files, [], 0.0, 0.35, seed):
-            yield text
+        # Every language, including web (HTML/CSS) and Lua which pretraining under-represented.
+        keep_extra = {"Lua": 1.0, "HTML": 0.5, "CSS": 1.0, "PHP": 1.0, "C": 0.6, "C#": 0.6, "C++": 0.6,
+                      "Python": 1.0, "JavaScript": 1.0, "TypeScript": 1.0}
+        for path in code_files:
+            for batch in pq.ParquetFile(path).iter_batches(batch_size=2048, columns=["code", "language", "license"]):
+                for row in batch.to_pylist():
+                    if rng.random() > keep_extra.get(row["language"], 0.3):
+                        continue
+                    text = _clean_code(row, skip={"Batchfile", "Makefile", "CMake", "Dockerfile", "TeX"})
+                    if text:
+                        yield text
+
+    def personal():
+        from .personal import documents
+        for _ in range(personal_repeat):
+            docs = list(documents(personal_file))
+            rng.shuffle(docs)
+            yield from docs
 
     def chat():
         # Instruction-shaped documents teach the "User:/Assistant:" turn format before SFT.
@@ -205,6 +221,8 @@ def build_anneal(output, tokenizer, code_files, pyedu_files, english_files, max_
             yield prompt_text(row["question"]) + " " + row["answer"]
 
     sources = {"pyedu": pyedu(), "english": english(), "code": code(), "chat": chat()}
+    if personal_file:
+        sources["personal"] = personal()
     used = {name: 0 for name in sources}
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output.parent) as scratch:

@@ -57,6 +57,10 @@ def parser():
     anneal.add_argument("--english", nargs="+", required=True)
     anneal.add_argument("--output", default="workspace/dataset-anneal")
     anneal.add_argument("--max-tokens", type=int, default=80_000_000)
+    anneal.add_argument("--personal", help="JSONL from collect-personal (your own code, kept local)")
+    personal = sub.add_parser("collect-personal", help="Collect your own code (secrets redacted) for private training")
+    personal.add_argument("folders", nargs="+")
+    personal.add_argument("--output", default="workspace/personal/personal-code.jsonl")
     train = sub.add_parser("train", help="Train new random weights or resume a checkpoint")
     train.add_argument("--data", default="workspace/dataset")
     train.add_argument("--run", default="workspace/run")
@@ -145,7 +149,11 @@ def main():
             from .corpus import build_anneal
             from .hardware import be_polite
             be_polite()
-            emit(build_anneal(args.output, args.tokenizer, args.code, args.pyedu, args.english, args.max_tokens))
+            emit(build_anneal(args.output, args.tokenizer, args.code, args.pyedu, args.english, args.max_tokens,
+                              personal_file=args.personal))
+        elif args.command == "collect-personal":
+            from .personal import collect
+            emit(collect(args.folders, args.output))
         elif args.command == "prepare-instructions":
             from .config import Config
             from .instruction import prepare_instructions
