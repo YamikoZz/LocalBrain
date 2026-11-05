@@ -12,7 +12,21 @@ from pathlib import Path
 CODE = {".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".lua", ".luau", ".html", ".htm", ".css",
         ".scss", ".php", ".c", ".h", ".cpp", ".hpp", ".cs", ".java", ".go", ".rs", ".sh", ".ps1", ".sql"}
 JSON_OK = {"minecraft", "REA", "Mcaddon"}  # addon/game definitions are code-like; other JSON is data
-SKIP_DIRS = {"node_modules", ".git", ".venv", "venv", "site-packages", "__pycache__", "dist", "build",
+ROBLOX = {".rbxmx", ".rbxlx"}  # Roblox XML models/places: the Luau scripts inside are extracted
+ROBLOX_SOURCE = re.compile(
+    r'<ProtectedString name="Source">(?:<!\[CDATA\[(.*?)\]\]>|([^<]*))</ProtectedString>', re.S)
+
+
+def roblox_scripts(xml):
+    """Script sources embedded in a Roblox .rbxmx/.rbxlx file (CDATA or XML-escaped)."""
+    import html
+    for cdata, escaped in ROBLOX_SOURCE.findall(xml):
+        source = cdata if cdata else html.unescape(escaped)
+        if len(source.strip()) >= 40:
+            yield source
+
+
+SKIP_DIRS = {"node_modules", "Packages", "_Index", ".git", ".venv", "venv", "site-packages", "__pycache__", "dist", "build",
              ".next", ".cache", "vendor", "coverage"}
 # Decompiled third-party apps are not the owner's code (and are obfuscated): never collect them.
 SKIP_DIR_PATTERN = re.compile(r"(-src$|^sources$|decompiled?|jadx|apktool)", re.I)
@@ -66,7 +80,7 @@ def collect(folders, output, max_bytes=200_000):
                                              for part in path.relative_to(root).parts[:-1]):
                     continue
                 ext = path.suffix.lower()
-                if ext not in CODE and not (ext == ".json" and root.name in JSON_OK):
+                if ext not in CODE and ext not in ROBLOX and not (ext == ".json" and root.name in JSON_OK):
                     continue
                 if SKIP_NAMES.search(path.name):
                     stats["skipped_secret_files"] += 1
@@ -77,20 +91,24 @@ def collect(folders, output, max_bytes=200_000):
                     text = path.read_text(encoding="utf-8")
                 except (UnicodeDecodeError, OSError):
                     continue
-                if len(text.strip()) < 40:
-                    continue
-                key = hashlib.sha1(" ".join(text.split()).encode()).hexdigest()
-                if key in seen:
-                    stats["duplicates"] += 1
-                    continue
-                seen.add(key)
-                text, n = redact(text)
-                stats["redactions"] += n
                 rel = path.relative_to(root.parent).as_posix()
-                stream.write(json.dumps({"path": rel, "text": text}, ensure_ascii=False) + "\n")
-                stats["files"] += 1
-                stats["by_extension"][ext] = stats["by_extension"].get(ext, 0) + 1
-                stats["by_folder"][root.name] = stats["by_folder"].get(root.name, 0) + 1
+                if ext in ROBLOX:
+                    pieces = [(f"{rel}#script{i + 1}.luau", src) for i, src in enumerate(roblox_scripts(text))]
+                else:
+                    pieces = [(rel, text)] if len(text.strip()) >= 40 else []
+                for name, piece in pieces:
+                    key = hashlib.sha1(" ".join(piece.split()).encode()).hexdigest()
+                    if key in seen:
+                        stats["duplicates"] += 1
+                        continue
+                    seen.add(key)
+                    piece, n = redact(piece)
+                    stats["redactions"] += n
+                    stream.write(json.dumps({"path": name, "text": piece}, ensure_ascii=False) + "\n")
+                    stats["files"] += 1
+                    kind = Path(name).suffix.lower()
+                    stats["by_extension"][kind] = stats["by_extension"].get(kind, 0) + 1
+                    stats["by_folder"][root.name] = stats["by_folder"].get(root.name, 0) + 1
     return stats
 
 
