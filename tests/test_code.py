@@ -180,3 +180,30 @@ class LibraryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HelperTests(unittest.TestCase):
+    def test_offline_helpers(self):
+        from localbrain.helpers import SearchCache, docs_lookup, explain_error
+        self.assertIn("split", docs_lookup("str.split")["doc"])
+        self.assertIn("Array/map", docs_lookup("Array.prototype.map", "javascript")["url"])
+        with self.assertRaises(ValueError):
+            docs_lookup("os.remove")
+        self.assertIn("got 3", explain_error("f([1]) returned 3, expected 2"))
+        self.assertIn("base case", explain_error("RecursionError: maximum recursion depth exceeded"))
+        with tempfile.TemporaryDirectory() as temp:
+            cache = SearchCache(Path(temp) / "c.sqlite3")
+            cache.put("k", {"source": "x", "results": [1]})
+            self.assertEqual(cache.get("k")["results"], [1])
+
+    def test_curriculum_starts_with_short_examples(self):
+        from localbrain.instruction import InstructionData
+        data = InstructionData.__new__(InstructionData)
+        data.rng, data.batch_size, data.curriculum, data.progress = np.random.default_rng(0), 4, True, 0.0
+        data.rows = {"train": [{"ids": list(range(n)), "answer_start": 1} for n in range(3, 103)]}
+        x, _ = data.batch("train", "cpu")
+        self.assertLessEqual(x.size(1), 33)  # only the shortest 30% at the start
+        data.progress = 1.0
+        del data._by_length
+        lengths = {data.batch("train", "cpu")[0].size(1) for _ in range(50)}
+        self.assertGreater(max(lengths), 50)

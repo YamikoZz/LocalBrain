@@ -160,3 +160,93 @@ def build_corpus(code_files, english_files, output, vocab_size=16384, max_tokens
         (folder / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
         os.replace(folder, output)
     return meta
+
+
+def build_anneal(output, tokenizer, code_files, pyedu_files, english_files, max_tokens=80_000_000,
+                 shares=None, seed=17):
+    """High-quality mix for the final (learning-rate decay) phase, using an existing tokenizer.
+
+    Default shares by characters: python-edu 35%, English 30%, GitHub code 20%,
+    instruction-style text (coding skills + human chat) 15%.
+    """
+    import pyarrow.parquet as pq
+    from .chatdata import code_skills
+    from .instruction import prompt_text
+    shares = shares or {"pyedu": 0.35, "english": 0.30, "code": 0.20, "chat": 0.15}
+    output = Path(output)
+    if output.exists():
+        raise ValueError("Output exists; choose a new directory")
+    tok = Tokenizer.from_file(str(tokenizer))
+    eos = tok.token_to_id("[EOS]")
+    rng = random.Random(seed)
+
+    def pyedu():
+        for path in pyedu_files:
+            for batch in pq.ParquetFile(path).iter_batches(batch_size=1024, columns=["text", "int_score"]):
+                for row in batch.to_pylist():
+                    if row["int_score"] >= 4 and 64 <= len(row["text"]) <= 32768:
+                        yield row["text"]
+
+    def english():
+        for path in english_files:
+            for batch in pq.ParquetFile(path).iter_batches(batch_size=1024, columns=["text", "int_score"]):
+                for row in batch.to_pylist():
+                    if row["int_score"] >= 4 and 200 <= len(row["text"]) <= 20000:
+                        yield row["text"]
+
+    def code():
+        # Skip the start of the shards that pretraining already saw most of; shuffle-free but later rows.
+        for kind, text in iter_documents(code_files, [], 0.0, 0.35, seed):
+            yield text
+
+    def chat():
+        # Instruction-shaped documents teach the "User:/Assistant:" turn format before SFT.
+        for row in code_skills(10**9, seed + 1):
+            yield prompt_text(row["question"]) + " " + row["answer"]
+
+    sources = {"pyedu": pyedu(), "english": english(), "code": code(), "chat": chat()}
+    used = {name: 0 for name in sources}
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=output.parent) as scratch:
+        folder = Path(scratch) / "dataset"
+        folder.mkdir()
+        (folder / "tokenizer.json").write_bytes(Path(tokenizer).read_bytes())
+        counts, mix = {"train": 0, "val": 0}, Counter()
+        streams = {s: (folder / f"{s}.bin").open("wb") for s in counts}
+        batch = []
+
+        def flush():
+            for (split, kind), enc in zip([(s, k) for s, k, _ in batch],
+                                          tok.encode_batch([t for _, _, t in batch])):
+                ids = np.asarray(enc.ids + [eos], dtype="<u2")
+                ids.tofile(streams[split])
+                counts[split] += len(ids)
+                mix[kind] += len(ids)
+            batch.clear()
+
+        try:
+            while counts["train"] < max_tokens and sources:
+                total = sum(used.values()) + 1
+                # Pick the source furthest below its target share.
+                name = min(sources, key=lambda n: used[n] / total - shares[n])
+                text = next(sources[name], None)
+                if text is None:
+                    del sources[name]
+                    continue
+                used[name] += len(text)
+                batch.append(("val" if is_val(text) else "train", name, text))
+                if len(batch) >= 2048:
+                    flush()
+                    print(json.dumps({"tokens": counts, "mix": dict(mix)}), flush=True)
+            flush()
+        finally:
+            for s in streams.values():
+                s.close()
+        meta = {"kind": "language", "vocab_size": tok.get_vocab_size(), "dtype": "<u2", "tokens": counts,
+                "mixture_tokens": dict(mix.most_common()), "target_shares": shares,
+                "tokenizer_sha256": fingerprint(folder / "tokenizer.json"),
+                "purpose": "annealing (final learning-rate decay phase)",
+                "sources": [str(Path(p).resolve()) for p in list(code_files) + list(pyedu_files) + list(english_files)]}
+        (folder / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+        os.replace(folder, output)
+    return meta

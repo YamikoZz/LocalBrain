@@ -120,6 +120,7 @@ class InstructionData:
             raise ValueError("Tokenizer fingerprint mismatch")
         self.context, self.batch_size = context, batch_size
         self.rng = np.random.default_rng(seed)
+        self.curriculum, self.progress = False, 1.0
         self.rows = {}
         # Test data is not loaded during optimization or validation.
         for name in ("train", "val"):
@@ -128,7 +129,14 @@ class InstructionData:
 
     def batch(self, split, device):
         examples = self.rows[split]
-        indices = self.rng.integers(0, len(examples), size=self.batch_size)
+        pool = len(examples)
+        if self.curriculum and split == "train":
+            if not hasattr(self, "_by_length"):
+                self._by_length = sorted(examples, key=lambda r: len(r["ids"]))
+            examples = self._by_length
+            # Easy-to-hard: first 30% shortest examples, growing to everything by 60% of training.
+            pool = max(self.batch_size, int(len(examples) * min(1.0, 0.3 + self.progress * 7 / 6)))
+        indices = self.rng.integers(0, pool, size=self.batch_size)
         rows = [examples[i] for i in indices]
         return self.collate(rows, device)
 

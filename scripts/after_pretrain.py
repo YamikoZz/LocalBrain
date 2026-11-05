@@ -1,4 +1,8 @@
-"""Wait for pretraining to finish, then run English SFT and the evaluations.
+"""Pretrain -> anneal -> English SFT -> evaluations, unattended.
+
+Pretraining's stable phase is stopped at STOP_AT; the learning-rate decay then runs
+on the high-quality anneal mix (python-edu, English, code, instruction text)
+instead of the original corpus (warmup-stable-decay "annealing").
 
 Runs unattended (no Claude needed). Progress goes to workspace/pipeline.log.
 Usage: python scripts/after_pretrain.py
@@ -13,8 +17,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PRE = ROOT / "workspace/run-code-pretrain"
 SFT = ROOT / "workspace/run-english-sft"
+ANNEAL = ROOT / "workspace/run-code-anneal"
+ANNEAL_DATA = ROOT / "workspace/dataset-anneal"
+STOP_AT = 16000
 LOG = ROOT / "workspace/pipeline.log"
-TARGET = json.loads((ROOT / "configs/code-pretrain.json").read_text())["steps"]
+TARGET = STOP_AT
 PROBES = ["Hi", "What can you do?", "Why is the sky blue?", "Give me three tips for learning to code.",
           "Write a Python function `is_even(n)` that returns True if n is even, otherwise False.",
           "Explain what this Python code does:\n\n```python\ndef f(xs):\n    return [x * 2 for x in xs]\n```",
@@ -48,15 +55,31 @@ def run(*args):
     return result.stdout
 
 
+def stop_pretraining():
+    """Stop the pretraining process (its latest.pt is written atomically every 250 steps)."""
+    script = ("Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Where-Object { "
+              "$_.CommandLine -like '*localbrain train*' -and $_.CommandLine -like '*run-code-pretrain*' } | "
+              "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }")
+    subprocess.run(["powershell", "-NoProfile", "-Command", script], capture_output=True)
+
+
 def main():
     log(f"waiting for pretraining to reach step {TARGET}")
     while last_step() < TARGET:
         time.sleep(120)
-    time.sleep(30)  # let the final checkpoint write finish
-    log("pretraining done; starting SFT")
+    time.sleep(60)  # let the step-16000 checkpoint write finish
+    stop_pretraining()
+    log("stable phase done; pretraining stopped")
+    while not (ANNEAL_DATA / "meta.json").exists():
+        log("waiting for anneal dataset")
+        time.sleep(120)
+    if not (ANNEAL / "latest.pt").exists():
+        run("train", "--data", str(ANNEAL_DATA.relative_to(ROOT)), "--run", str(ANNEAL.relative_to(ROOT)),
+            "--config", "configs/code-anneal.json", "--init", str((PRE / "latest.pt").relative_to(ROOT)))
+    log("anneal done; starting SFT")
     if not (SFT / "latest.pt").exists():
         run("train", "--data", "workspace/dataset-english-sft", "--run", str(SFT.relative_to(ROOT)),
-            "--config", "configs/code-sft.json", "--init", str((PRE / "latest.pt").relative_to(ROOT)))
+            "--config", "configs/code-sft.json", "--init", str((ANNEAL / "latest.pt").relative_to(ROOT)))
     run("code-eval", "--run", str(SFT.relative_to(ROOT)), "--samples", "8")
     from_root = str(ROOT)
     sys.path.insert(0, from_root)

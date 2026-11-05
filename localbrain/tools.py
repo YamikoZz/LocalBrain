@@ -8,6 +8,7 @@ from .documents import read_document
 from .knowledge import Knowledge
 from .sandbox import run_python
 from .webtools import read_webpage, search_web
+from .helpers import SearchCache, docs_lookup, explain_error, search, wikipedia
 
 BINARY = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
           ast.Div: operator.truediv, ast.FloorDiv: operator.floordiv,
@@ -47,6 +48,7 @@ class Tools:
         self.files = self.home / "files"
         self.files.mkdir(parents=True, exist_ok=True)
         self.knowledge = Knowledge(self.home / "knowledge.sqlite3")
+        self.cache = SearchCache(self.home / "search-cache.sqlite3")
 
     def file_path(self, path):
         path = Path(path)
@@ -80,6 +82,12 @@ class Tools:
             "get_time": (lambda: datetime.now().astimezone().isoformat(), {}),
             "search_local": (self.knowledge.search, {"query": "text", "limit": "1..20 (optional)"}),
             "search_web": (search_web, {"query": "text", "limit": "1..10 (optional)"}),
+            "search": (lambda query, limit=3: search(query, self.cache, self.knowledge, limit),
+                       {"query": "text; local store, then Wikipedia, then web (cached)"}),
+            "wikipedia": (wikipedia, {"query": "text", "sentences": "1..10 (optional)"}),
+            "docs_lookup": (docs_lookup, {"name": "e.g. str.split or Array.prototype.map",
+                                          "language": "python or javascript (optional)"}),
+            "explain_error": (explain_error, {"message": "error text from a failed run"}),
             "read_webpage": (read_webpage, {"url": "public HTTP(S) URL"}),
             "save_knowledge": (self.knowledge.add, {"text": "document", "source": "source URL or label",
                                                   "title": "optional title"}),

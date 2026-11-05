@@ -121,6 +121,7 @@ def train(dataset, run, cfg, resume=False, init=None):
     if kind == "instruction":
         from .instruction import InstructionData
         data = InstructionData(dataset, cfg.context, cfg.batch_size, cfg.seed)
+        data.curriculum = cfg.curriculum
     else:
         data = TokenData(dataset, cfg.context, cfg.batch_size, cfg.seed)
     cfg.vocab_size = data.meta["vocab_size"]
@@ -186,6 +187,7 @@ def train(dataset, run, cfg, resume=False, init=None):
         for current in range(start + 1, cfg.steps + 1):
             optimizer.zero_grad(set_to_none=True)
             scale = lr_scale(current, cfg)
+            data.progress = current / cfg.steps
             for group in optimizer.param_groups:
                 group["lr"] = group["base_lr"] * scale
             total = 0.0

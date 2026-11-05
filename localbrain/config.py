@@ -34,6 +34,7 @@ class Config:
     precision: str = "fp32"
     vram_limit_gib: float = 0.0
     polite: bool = False
+    curriculum: bool = False  # instruction data: start with short examples, widen to all
 
     def __post_init__(self):
         for key in ("layers", "width", "heads", "context", "vocab_size",

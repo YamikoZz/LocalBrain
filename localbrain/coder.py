@@ -73,8 +73,9 @@ def clean(text):
 
 
 def repair_prompt(task_prompt, code, message):
+    from .helpers import explain_error
     return (task_prompt + "\nThis attempt is wrong:\n" + code.rstrip() + "\nError: " + message[:200]
-            + "\nWrite a corrected version.")
+            + "\nHint: " + explain_error(message) + "\nWrite a corrected version.")
 
 
 class Library:

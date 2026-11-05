@@ -26,5 +26,6 @@
   "min_lr_ratio": 0.1,
   "precision": "fp32",
   "vram_limit_gib": 2.8,
-  "polite": true
+  "polite": true,
+  "curriculum": true
 }
