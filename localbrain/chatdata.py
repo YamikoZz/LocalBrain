@@ -10,6 +10,7 @@ Sources
 """
 import json
 import random
+import re
 from pathlib import Path
 
 from .tasks import F, HELD_OUT, LANGUAGES, literal, make_task
@@ -91,11 +92,20 @@ def code_skills(count, seed, languages=("python", "javascript")):
         yield {"question": question, "answer": answer, "source": "code-" + fam["name"], "family": fam["name"]}
 
 
-def build_mix(oasst_files, dolly_file, output, code_count=70000, seed=11):
+REFUSAL = re.compile(r"^(I'?m sorry|I am sorry|Sorry|I cannot|I can'?t|I can not|I won'?t|I will not|"
+                     r"As an AI|As a language model|I'?m not able to|I am not able to|I'?m unable|I am unable|"
+                     r"I must decline|I do not feel comfortable|I don'?t feel comfortable)", re.I)
+
+
+def build_mix(oasst_files, dolly_file, output, code_count=70000, seed=11, drop_refusals=True):
+    """drop_refusals: the project owner chose a model that does not refuse users, so
+    human-written replies that open with a refusal are left out of training."""
     output = Path(output)
     if output.exists():
         raise ValueError("Output exists; choose a new file")
     rows = list(oasst_pairs(oasst_files)) + list(dolly_pairs(dolly_file))
+    if drop_refusals:
+        rows = [r for r in rows if not REFUSAL.match(r["answer"].strip())]
     rows += list(code_skills(code_count, seed))
     rng = random.Random(seed)
     for _ in range(300):

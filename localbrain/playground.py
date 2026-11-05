@@ -1,4 +1,8 @@
-"""Interactive window for trying a checkpoint: type the start of some code, it continues."""
+"""Interactive window for trying a checkpoint. Press Enter to send.
+
+Base model (pretraining): it continues whatever you type (best with the start of some code).
+Instruction model (after SFT): it answers your message.
+"""
 from pathlib import Path
 
 import torch
@@ -21,37 +25,49 @@ def load(run, device="auto"):
     return model, Tokenizer.from_file(str(run / "tokenizer.json")), saved["step"], saved.get("training_kind")
 
 
-def main(run, device="auto", max_tokens=120, temperature=0.6):
-    model, tok, step, kind = load(run, device)
-    instruct = kind == "instruction"
-    device = next(model.parameters()).device
-    print(f"LocalBrain playground | {run} | step {step} | "
-          + ("instruction model: describe the function you want" if instruct
-             else "base model: type the START of some code and it will continue"))
-    print("Finish your input with an empty line. Type /exit to quit, /reload for the newest checkpoint.\n")
+def read_message():
+    """One line = one message. End a line with a backslash to continue on the next line."""
+    lines = []
     while True:
+        line = input("... " if lines else "You> ")
+        if line.endswith("\\"):
+            lines.append(line[:-1])
+            continue
+        lines.append(line)
+        text = "\n".join(lines)
+        if text.strip():
+            return text
         lines = []
+
+
+def main(run, device="auto", max_tokens=160, temperature=0.6):
+    model, tok, step, kind = load(run, device)
+    device = next(model.parameters()).device
+    instruct = kind == "instruction"
+    print(f"LocalBrain playground | {run} | step {step} | "
+          + ("chat model: type a message" if instruct
+             else "base model (not a chat model yet): it continues the text you type"))
+    print("Press Enter to send. End a line with \\ to type more lines. Commands: /reload, /exit\n")
+    while True:
         try:
-            while True:
-                line = input("... " if lines else ">>> ")
-                if not line and lines:
-                    break
-                if line.strip() in {"/exit", "/quit"}:
-                    return
-                if line.strip() == "/reload":
-                    model, tok, step, kind = load(run, str(device))
-                    instruct = kind == "instruction"
-                    print(f"reloaded step {step}")
-                    lines = []
-                    continue
-                if line or lines:
-                    lines.append(line)
+            text = read_message()
         except EOFError:
             return
-        text = "\n".join(lines)
-        ids = ([tok.token_to_id("[BOS]")] + tok.encode(prompt_text(text)).ids) if instruct else tok.encode(text).ids
+        command = text.strip()
+        if command in {"/exit", "/quit"}:
+            return
+        if command == "/reload":
+            model, tok, step, kind = load(run, str(device))
+            instruct = kind == "instruction"
+            print(f"reloaded step {step}\n")
+            continue
+        print("(thinking...)", flush=True)
+        if instruct:
+            ids = [tok.token_to_id("[BOS]")] + tok.encode(prompt_text(text)).ids
+        else:
+            ids = tok.encode(text).ids
         ids = ids[-(model.cfg.context - max_tokens):]
         out = model.generate(torch.tensor([ids], device=device), max_tokens, temperature=temperature,
                              top_k=40, eos_id=tok.token_to_id("[EOS]"), repetition_penalty=1.1)
-        continuation = tok.decode(out[0, len(ids):].tolist(), skip_special_tokens=True)
-        print("\n" + ("" if instruct else text) + continuation + "\n" + "-" * 60)
+        reply = tok.decode(out[0, len(ids):].tolist(), skip_special_tokens=True)
+        print("Model> " + (reply.strip() if instruct else text + reply) + "\n" + "-" * 60)
