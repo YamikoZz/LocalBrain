@@ -58,9 +58,15 @@ def parser():
     anneal.add_argument("--output", default="workspace/dataset-anneal")
     anneal.add_argument("--max-tokens", type=int, default=80_000_000)
     anneal.add_argument("--personal", help="JSONL from collect-personal (your own code, kept local)")
+    anneal.add_argument("--extra", action="append", default=[], metavar="NAME=PATH",
+                        help="Extra training source JSONL of {path,text} docs, e.g. --extra offensive=D:\\abs\\offensive.jsonl (repeatable)")
+    anneal.add_argument("--extra-share", type=float, default=0.1, help="Character share for each --extra source in the final anneal mix")
     personal = sub.add_parser("collect-personal", help="Collect your own code (secrets redacted) for private training")
     personal.add_argument("folders", nargs="+")
     personal.add_argument("--output", default="workspace/personal/personal-code.jsonl")
+    collect_offensive = sub.add_parser("collect-offensive", help="Collect offensive-security documents (malware analysis, attack toolkits) as JSONL")
+    collect_offensive.add_argument("--root", required=True, help="Folder of topic subdirectories with markdown notes")
+    collect_offensive.add_argument("--output", default="workspace/raw-offensive/offensive.jsonl")
     train = sub.add_parser("train", help="Train new random weights or resume a checkpoint")
     train.add_argument("--data", default="workspace/dataset")
     train.add_argument("--run", default="workspace/run")
@@ -149,11 +155,18 @@ def main():
             from .corpus import build_anneal
             from .hardware import be_polite
             be_polite()
+            extras = []
+            for item in args.extra:
+                name, path = item.split("=", 1)
+                extras.append((name, path, args.extra_share, 1))
             emit(build_anneal(args.output, args.tokenizer, args.code, args.pyedu, args.english, args.max_tokens,
-                              personal_file=args.personal))
+                              personal_file=args.personal, extras=extras))
         elif args.command == "collect-personal":
             from .personal import collect
             emit(collect(args.folders, args.output))
+        elif args.command == "collect-offensive":
+            from .extra import offensive_collect
+            emit(offensive_collect(args.root, args.output))
         elif args.command == "prepare-instructions":
             from .config import Config
             from .instruction import prepare_instructions

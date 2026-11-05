@@ -97,7 +97,7 @@ REFUSAL = re.compile(r"^(I'?m sorry|I am sorry|Sorry|I cannot|I can'?t|I can not
                      r"I must decline|I do not feel comfortable|I don'?t feel comfortable)", re.I)
 
 
-def build_mix(oasst_files, dolly_file, output, code_count=70000, seed=11, drop_refusals=True):
+def build_mix(oasst_files, dolly_file, output, code_count=70000, seed=11, drop_refusals=True, extra_pairs=()):
     """drop_refusals: the project owner chose a model that does not refuse users, so
     human-written replies that open with a refusal are left out of training."""
     output = Path(output)
@@ -107,6 +107,7 @@ def build_mix(oasst_files, dolly_file, output, code_count=70000, seed=11, drop_r
     if drop_refusals:
         rows = [r for r in rows if not REFUSAL.match(r["answer"].strip())]
     rows += list(code_skills(code_count, seed))
+    rows += list(extra_pairs)
     rng = random.Random(seed)
     for _ in range(300):
         rows.append({"question": rng.choice(INTRO_QUESTIONS), "answer": rng.choice(INTRO_ANSWERS),

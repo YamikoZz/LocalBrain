@@ -115,7 +115,7 @@ def collect(folders, output, max_bytes=200_000):
 def documents(path):
     """Training documents: a path header (in the file's own comment style) + the code."""
     styles = {".py": "# ", ".sh": "# ", ".ps1": "# ", ".lua": "-- ", ".luau": "-- ", ".sql": "-- ",
-              ".html": None, ".htm": None, ".css": None, ".json": None}
+              ".html": None, ".htm": None, ".css": None, ".json": None, ".md": None}
     for line in Path(path).read_text(encoding="utf-8").splitlines():
         row = json.loads(line)
         ext = Path(row["path"]).suffix.lower()

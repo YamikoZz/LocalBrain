@@ -163,7 +163,8 @@ def build_corpus(code_files, english_files, output, vocab_size=16384, max_tokens
 
 
 def build_anneal(output, tokenizer, code_files, pyedu_files, english_files, max_tokens=80_000_000,
-                 shares=None, seed=17, personal_file=None, personal_repeat=4):
+                 shares=None, seed=17, personal_file=None, personal_repeat=4, extras=()):
+    """extras: (name, path_text_jsonl, share, repeat) tuples, e.g. FiveM Lua or security docs."""
     """High-quality mix for the final (learning-rate decay) phase, using an existing tokenizer.
 
     Default shares by characters: python-edu 35%, English 30%, GitHub code 20%,
@@ -172,8 +173,12 @@ def build_anneal(output, tokenizer, code_files, pyedu_files, english_files, max_
     import pyarrow.parquet as pq
     from .chatdata import code_skills
     from .instruction import prompt_text
-    shares = shares or ({"pyedu": 0.25, "english": 0.25, "code": 0.25, "chat": 0.13, "personal": 0.12}
-                        if personal_file else {"pyedu": 0.35, "english": 0.30, "code": 0.20, "chat": 0.15})
+    shares = dict(shares or ({"pyedu": 0.25, "english": 0.25, "code": 0.25, "chat": 0.13, "personal": 0.12}
+                             if personal_file else {"pyedu": 0.35, "english": 0.30, "code": 0.20, "chat": 0.15}))
+    if extras:
+        taken = sum(share for _, _, share, _ in extras)
+        shares = {k: v * (1 - taken) for k, v in shares.items()}
+        shares.update({name: share for name, _, share, _ in extras})
     output = Path(output)
     if output.exists():
         raise ValueError("Output exists; choose a new directory")
@@ -223,6 +228,16 @@ def build_anneal(output, tokenizer, code_files, pyedu_files, english_files, max_
     sources = {"pyedu": pyedu(), "english": english(), "code": code(), "chat": chat()}
     if personal_file:
         sources["personal"] = personal()
+
+    def extra(path, repeat):
+        from .personal import documents
+        for _ in range(repeat):
+            docs = list(documents(path))
+            rng.shuffle(docs)
+            yield from docs
+
+    for name, path, _, repeat in extras:
+        sources[name] = extra(path, repeat)
     used = {name: 0 for name in sources}
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output.parent) as scratch:
