@@ -4,3 +4,6 @@ __pycache__/
 *.egg-info/
 workspace/
 !workspace/.gitkeep
+
+# external dataset packages (large, not source)
+LocalBrain_Programming_Dataset_v4/
