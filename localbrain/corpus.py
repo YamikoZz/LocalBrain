@@ -94,7 +94,8 @@ def is_val(text):
 
 
 def build_corpus(code_files, english_files, output, vocab_size=16384, max_tokens=600_000_000,
-                 english_share=0.15, other_share=0.35, tokenizer_chars=150_000_000, seed=7):
+                 english_share=0.15, other_share=0.35, tokenizer_chars=150_000_000, seed=7,
+                 tokenizer=None):
     output = Path(output)
     if output.exists():
         raise ValueError("Output exists; choose a new directory")
@@ -102,26 +103,31 @@ def build_corpus(code_files, english_files, output, vocab_size=16384, max_tokens
     with tempfile.TemporaryDirectory(dir=output.parent) as scratch:
         folder = Path(scratch) / "dataset"
         folder.mkdir()
-        # 1) Tokenizer from the first documents of the (deterministic) mixed stream.
-        tok = Tokenizer(models.BPE(unk_token="[UNK]"))
-        tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
-        tok.decoder = decoders.ByteLevel()
-        trainer = trainers.BpeTrainer(vocab_size=vocab_size, min_frequency=2, special_tokens=SPECIAL,
-                                      initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
-                                      show_progress=False)
+        # 1) Tokenizer: reuse an existing one (to stay compatible with earlier datasets)
+        #    or train a fresh BPE from the first documents of the deterministic mixed stream.
+        if tokenizer:
+            tok = Tokenizer.from_file(str(tokenizer))
+            tok.save(str(folder / "tokenizer.json"))
+        else:
+            tok = Tokenizer(models.BPE(unk_token="[UNK]"))
+            tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
+            tok.decoder = decoders.ByteLevel()
+            trainer = trainers.BpeTrainer(vocab_size=vocab_size, min_frequency=2, special_tokens=SPECIAL,
+                                          initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
+                                          show_progress=False)
 
-        def sample():
-            total = 0
-            for _, text in iter_documents(code_files, english_files, english_share, other_share, seed):
-                if is_val(text):
-                    continue
-                total += len(text)
-                yield text
-                if total >= tokenizer_chars:
-                    return
+            def sample():
+                total = 0
+                for _, text in iter_documents(code_files, english_files, english_share, other_share, seed):
+                    if is_val(text):
+                        continue
+                    total += len(text)
+                    yield text
+                    if total >= tokenizer_chars:
+                        return
 
-        tok.train_from_iterator(sample(), trainer=trainer)
-        tok.save(str(folder / "tokenizer.json"))
+            tok.train_from_iterator(sample(), trainer=trainer)
+            tok.save(str(folder / "tokenizer.json"))
         eos = tok.token_to_id("[EOS]")
         # 2) Encode the full stream.
         counts, mix, docs = {"train": 0, "val": 0}, Counter(), 0

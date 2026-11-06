@@ -46,14 +46,16 @@ class CodeModel:
         self.tokenizer = Tokenizer.from_file(str(self.run / "tokenizer.json"))
         self.eos = self.tokenizer.token_to_id("[EOS]")
 
-    def sample(self, question, n=1, temperature=0.8, top_k=40, max_tokens=200, greedy=False):
+    def sample(self, question, n=1, temperature=0.8, top_k=40, max_tokens=200, greedy=False,
+               repetition_penalty=1.3, no_repeat_ngram=3):
         ids = [self.tokenizer.token_to_id("[BOS]")] + self.tokenizer.encode(prompt_text(question)).ids
         room = self.cfg.context - len(ids)
         if room < 16:
             raise ValueError("Task description too long for the model context")
         x = torch.tensor([ids] * n, dtype=torch.long, device=self.device)
         out = self.model.generate(x, min(max_tokens, room), temperature=1.0 if greedy else temperature,
-                                  top_k=1 if greedy else top_k, eos_id=self.eos)
+                                  top_k=1 if greedy else top_k, eos_id=self.eos,
+                                  repetition_penalty=repetition_penalty, no_repeat_ngram=no_repeat_ngram)
         texts = []
         for row in out[:, len(ids):].tolist():
             if self.eos in row:
