@@ -78,7 +78,7 @@ def main():
     if (SFT / "latest.pt").exists():
         log("skip sft (run-english-sft2 exists)")
     else:
-        run("sft (short, anti-overfit)",
+        run("sft (short, anti-overfit; dataset now includes verified arithmetic)",
             ["train", "--data", "workspace/dataset-english-sft", "--run", str(SFT),
              "--config", "configs/code-sft.json", "--init", str(ANNEAL / "latest.pt")])
 
