@@ -31,6 +31,11 @@ PRE = Path("workspace/run-code-pretrain-big")
 ANNEAL = Path("workspace/run-code-anneal2")
 SFT = Path("workspace/run-english-sft2")
 
+# Pretrain config is overridable so the same pipeline runs on a bigger GPU (e.g. Colab T4,
+# 16 GiB) without touching the home-PC default. Set LOCALBRAIN_PRETRAIN_CONFIG to
+# configs/code-pretrain-colab.json on Colab; left unset it keeps the 4 GiB home settings.
+PRETRAIN_CONFIG = os.environ.get("LOCALBRAIN_PRETRAIN_CONFIG", "configs/code-pretrain-big.json")
+
 
 def log(msg):
     line = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n"
@@ -60,7 +65,8 @@ def main():
              "--output", str(BIG), "--max-tokens", "640000000", "--tokenizer", TOKENIZER])
 
     # Stage 1: fresh (or resumed) pretrain on the big corpus.
-    pre_args = ["train", "--data", str(BIG), "--run", str(PRE), "--config", "configs/code-pretrain-big.json"]
+    log(f"pretrain config: {PRETRAIN_CONFIG}")
+    pre_args = ["train", "--data", str(BIG), "--run", str(PRE), "--config", PRETRAIN_CONFIG]
     if (PRE / "latest.pt").exists():
         pre_args.append("--resume")
         log("pretrain: resuming from existing checkpoint")
