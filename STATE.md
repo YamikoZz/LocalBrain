@@ -23,6 +23,12 @@
 - Colab CLI (`google-colab-cli`) ล็อกอินได้ แต่ runtime ที่เปิดจากเบราว์เซอร์แสดงเป็น `[?]` orphan
   สั่ง `exec` เข้าไม่ได้ ต้องสร้าง session ผ่าน `colab new` ซึ่ง GPU ต้องมี compute units
 - ข้อควรระวัง Drive: ถ้ามี folder ชื่อซ้ำ Colab จะเห็นเป็น `ชื่อ (1)` ต้อง `mv` กลับให้ชื่อตรง
+- Programming Dataset v4 (ภายนอก, 2.6M แถว / 100M คำ) มีโจทย์จริงแค่ ~38 แบบ (สูตรเลข 28 + SQL)
+  `scripts/import_v4.py` คัดมา 8,360 แถว (0.35M คำ) ตรวจ Python ด้วย ast + ตัวคำนวณแบบจำกัด ไม่รันโค้ดจากชุดข้อมูล
+  ได้ `dataset-english-sft-v4` train 76,822 (ยังไม่ได้ใช้บน Colab)
+- ทดสอบ A/B (base Colab step 12,000, SFT 500 steps, ต่างกันแค่ข้อมูล):
+  มี v4 แล้วเขียนถูกภาษา (Luau, C++, SQL) แต่ logic ติดเทมเพลต เช่นบวกเลขได้ `a + b - a * b`
+  TypeScript ยังออกมาเป็น JavaScript ไม่มี type → ทางแก้ที่ดีกว่าคือขยายโจทย์จริงใน tasks.py ไป Luau/TS/C++
 
 # LocalBrain — สถานะ 2026-11-06 (เช้า)
 

@@ -44,6 +44,7 @@
 | `scripts/make_conversation.py` | ทักทาย/แนะนำตัว/คุยเล่น (คำถามไม่ซ้ำกัน เพราะ dedup ตัดตามคำถาม) |
 | `scripts/make_hardcore.py` | โค้ด 7 ภาษา + ตอบเลขด้วยโค้ด `print(...)` |
 | `scripts/make_oasst_full.py` | OpenAssistant oasst2 แบบหลายรอบสนทนา 11,750 คู่ |
+| `scripts/import_v4.py` | คัดตัวอย่างสมดุลจาก Programming Dataset v4 (Python/JS/TS/Luau/C++/SQL) 8,360 แถว ตรวจโดยไม่รันโค้ดจากชุดข้อมูล |
 
 รวมไฟล์ JSONL แล้วสร้าง dataset ด้วย tokenizer เดิม:
 
