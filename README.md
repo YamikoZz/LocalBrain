@@ -1,11 +1,75 @@
 # LocalBrain
 
-ต้นแบบ AI ส่วนตัว: ฝึก Transformer จากน้ำหนักสุ่ม, ฝึก tokenizer เอง,
-คลังความรู้ SQLite FTS5, ค้น/อ่านเว็บ และเครื่องมือที่เรียกอย่างชัดเจนผ่าน CLI
-ไม่เรียก API ของโมเดล ไม่โหลดน้ำหนักสำเร็จรูป
+**Vibe Coding AI ที่เทรนเองจากศูนย์** บนคอมบ้านหรือ GPU ฟรี
+สั่งงานเป็นภาษาอังกฤษ → โมเดลเขียนโค้ด → ระบบรันเทสต์ → แก้จนผ่าน → เก็บคำตอบไว้ใช้ซ้ำ
 
-**สถานะ:** เป็นระบบสำหรับทดลองฝึกและค้นเอกสาร ยังไม่ใช่ผู้ช่วยที่ตอบได้ทุกเรื่อง
-ข้อมูลตัวอย่างมีไว้ตรวจระบบเท่านั้น ไม่พอสำหรับฝึกผู้ช่วยที่ใช้งานทั่วไป
+- ฝึก Transformer และ tokenizer เองจากน้ำหนักสุ่ม ไม่โหลดน้ำหนักสำเร็จรูป ไม่เรียก API ของโมเดล
+  (ดาวน์โหลดเฉพาะชุดข้อมูล)
+- มีคลังความรู้ SQLite FTS5, ค้น/อ่านเว็บ และเครื่องมือที่เรียกผ่าน CLI
+- แผนสถาปัตยกรรม: [ROADMAP.md](ROADMAP.md) · สถานะและตัวเลขล่าสุด: [STATE.md](STATE.md)
+
+## สถานะปัจจุบัน (2026-11-06)
+
+| | |
+|---|---|
+| โมเดล | v2 20.5M พารามิเตอร์ (RoPE, QK-Norm, RMSNorm, ReLU², Muon, WSD), context 512 |
+| Corpus | 319M tokens (โค้ด ~85% + FineWeb-Edu) |
+| ที่เทรน | Google Colab T4 ฟรี (24,000 steps = 393M tokens) → anneal → SFT |
+| ข้อมูล SFT | 69,763 ตัวอย่าง: โค้ด, OpenAssistant หลายรอบ, Dolly, เลข, โค้ดหลายภาษา |
+| ทำได้ | รูปแบบคำตอบถูก, เขียนโครง Python ได้ |
+| ยังทำไม่ได้ | logic ซับซ้อน, เลขในหัว, โค้ดหลายภาษา (รอโมเดล ~50M ตาม ROADMAP) |
+
+ยังเป็นโมเดลทดลอง ผลลัพธ์ต้องผ่านการรันเทสต์ก่อนใช้งานเสมอ
+
+## Pipeline ปัจจุบัน (code model)
+
+```powershell
+# 1) สร้าง corpus โดยใช้ tokenizer เดิม (dataset อื่นจะได้ใช้ร่วมกันได้)
+.\.venv\Scripts\python.exe -m localbrain build-corpus --code <code-parquet...> --english <fineweb-parquet> --output workspace/dataset-code-big --max-tokens 640000000 --tokenizer workspace/dataset-code/tokenizer.json
+# 2) pretrain → anneal → SFT → code-eval ในคำสั่งเดียว (ข้ามขั้นที่เสร็จแล้ว, resume ได้)
+.\.venv\Scripts\python.exe scripts/retrain.py
+```
+
+`scripts/retrain.py` ใช้ config pretrain ตามตัวแปร `LOCALBRAIN_PRETRAIN_CONFIG`
+(ไม่ตั้ง = `configs/code-pretrain-big.json` สำหรับ GPU 4 GB, บน Colab ใช้ `configs/code-pretrain-colab.json`)
+
+### เทรนบน Google Colab
+ดู [notebooks/README.md](notebooks/README.md) และ `notebooks/LocalBrain_Colab.ipynb`
+
+### สร้างข้อมูล SFT
+
+| สคริปต์ | ได้อะไร |
+|---|---|
+| `scripts/make_arithmetic.py` | บวก/ลบ/คูณ/หารที่คำนวณตรวจแล้ว 4,258 ตัวอย่าง |
+| `scripts/make_conversation.py` | ทักทาย/แนะนำตัว/คุยเล่น (คำถามไม่ซ้ำกัน เพราะ dedup ตัดตามคำถาม) |
+| `scripts/make_hardcore.py` | โค้ด 7 ภาษา + ตอบเลขด้วยโค้ด `print(...)` |
+| `scripts/make_oasst_full.py` | OpenAssistant oasst2 แบบหลายรอบสนทนา 11,750 คู่ |
+
+รวมไฟล์ JSONL แล้วสร้าง dataset ด้วย tokenizer เดิม:
+
+```powershell
+.\.venv\Scripts\python.exe -m localbrain prepare-instructions workspace/raw-sft/chat-full.jsonl --output workspace/dataset-english-sft-chat --tokenizer workspace/dataset-code/tokenizer.json --config configs/code-sft.json
+```
+
+ทดสอบข้อมูลใหม่เร็วๆ บนคอมบ้านก่อนใช้จริง (SFT 500 steps):
+
+```powershell
+.\.venv\Scripts\python.exe -m localbrain train --data workspace/dataset-english-sft-chat --run workspace/run-sft-test --config configs/code-sft-test.json --init workspace/run-code-pretrain-big/latest.pt
+```
+
+### ใช้งานโมเดล
+
+```powershell
+# แชท
+.\.venv\Scripts\python.exe -m localbrain.cli playground --run workspace/run-english-sft2
+# vibe coding: เขียน → รันเทสต์ → แก้จนผ่าน
+.\.venv\Scripts\python.exe -m localbrain.cli code --run workspace/run-english-sft2 --language python --prompt "a function that checks if a number is prime"
+```
+
+---
+
+เนื้อหาด้านล่างเป็นเอกสารของระบบรุ่นแรก (โมเดล 6.9M, ข้อมูลภาษาไทย) และเครื่องมือพื้นฐาน
+ซึ่งยังใช้งานได้
 
 ## โครงสร้าง
 
@@ -13,11 +77,20 @@
 .
 ├── pyproject.toml
 ├── README.md
+├── ROADMAP.md                 # แผนสถาปัตยกรรม
+├── STATE.md                   # สถานะและตัวเลขล่าสุด
 ├── Open-Chat.cmd
 ├── Open-Model.cmd
-├── STATE.md
 ├── .gitignore
+├── notebooks/
+│   ├── LocalBrain_Colab.ipynb # เทรนบน Colab T4
+│   └── README.md
 ├── configs/
+│   ├── code-pretrain-big.json   # pretrain GPU 4 GB
+│   ├── code-pretrain-colab.json # pretrain Colab T4
+│   ├── code-anneal.json
+│   ├── code-sft.json
+│   ├── code-sft-test.json       # SFT สั้นสำหรับทดสอบข้อมูล
 │   ├── default.json
 │   ├── smoke.json
 │   └── instruction.json
@@ -26,28 +99,42 @@
 ├── localbrain/
 │   ├── __init__.py
 │   ├── __main__.py
+│   ├── cli.py                 # คำสั่งทั้งหมด
 │   ├── config.py
+│   ├── model.py               # Transformer v1/v2
+│   ├── optim.py               # Muon, CPUAdamW
+│   ├── train.py               # เทรน/resume/init, WSD schedule
 │   ├── data.py
-│   ├── model.py
-│   ├── optim.py
-│   ├── train.py
+│   ├── corpus.py              # build-corpus จาก parquet
+│   ├── instruction.py         # prepare-instructions (dedup ตามคำถาม)
+│   ├── chatdata.py            # ผสมข้อมูลแชท OASST/Dolly/โค้ด
+│   ├── tasks.py               # โจทย์โค้ดที่ตรวจได้
+│   ├── coder.py               # vibe coding: เขียน → รันเทสต์ → แก้ → คลังคำตอบ
+│   ├── runner.py              # รันเทสต์ Python/JS
+│   ├── playground.py          # หน้าต่างแชท
+│   ├── extra.py
+│   ├── personal.py
 │   ├── hardware.py
-│   ├── knowledge.py
+│   ├── knowledge.py           # คลังความรู้ SQLite FTS5
 │   ├── documents.py
-│   ├── webtools.py
+│   ├── webtools.py            # ค้นเว็บ/อ่านหน้าเว็บ
+│   ├── helpers.py
 │   ├── sandbox.py
 │   ├── tools.py
 │   ├── assistant.py
 │   ├── chat.py
-│   ├── instruction.py
-│   ├── inference.py
-│   └── cli.py
+│   └── inference.py
 ├── examples/
 │   ├── calculator.json
 │   └── sandbox.json
 ├── sandbox/
 │   └── Dockerfile
 ├── scripts/
+│   ├── retrain.py             # pipeline pretrain → anneal → SFT → eval
+│   ├── make_arithmetic.py
+│   ├── make_conversation.py
+│   ├── make_hardcore.py
+│   ├── make_oasst_full.py
 │   └── fetch_instructions.py
 ├── tests/
 │   ├── test_system.py

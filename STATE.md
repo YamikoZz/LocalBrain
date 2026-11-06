@@ -1,4 +1,30 @@
-# LocalBrain — สถานะล่าสุด 2026-11-06
+# LocalBrain — สถานะล่าสุด 2026-11-06 (เย็น): ย้ายเทรนขึ้น Colab
+
+- เป้าหมายชัดเจนแล้ว: **Vibe Coding AI** สั่งงานภาษาอังกฤษ → เขียนโค้ด → รันตรวจ → แก้จนผ่าน
+  เน้นโค้ดหลายภาษา และคณิต/ฟิสิกส์ผ่านโค้ด แผนสถาปัตยกรรมอยู่ใน ROADMAP.md
+- โมเดล v2: 20,454,784 พารามิเตอร์, width 384, 8 layers, 6 heads, context 512, vocab 16384,
+  Muon + WSD schedule, FP32
+- Corpus `dataset-code-big`: 319,223,829 train tokens (โค้ด 8 shards + FineWeb-Edu, โค้ด ~85%)
+  ใช้ tokenizer เดิม (sha256 ff5386c5...) ทุก dataset จึงใช้ร่วมกันได้
+- เทรนบน Google Colab T4 ฟรี (`notebooks/LocalBrain_Colab.ipynb`, config `code-pretrain-colab.json`)
+  - batch 32, 24,000 steps = 393M tokens (~1.2 epoch), ~1.05 วินาที/step, ใช้ VRAM ~8.8/15 GB
+  - ลดจาก 48,000 steps เพราะ batch 32 จะเห็นข้อมูลซ้ำ ~2.5 รอบ
+  - ล่าสุด step 14,000: val_loss 9.84 → 2.177 ยังลดลงต่อเนื่อง
+  - ต่อด้วย anneal 4,000 steps (33M tokens) และ SFT 1,200 steps อัตโนมัติ
+  - Colab ฟรีหลุดราว 3.5 ชม. ต่อ session: รัน cell 1-5 ใหม่แล้ว resume จาก checkpoint ใน Drive
+- หยุดเทรนบนคอมบ้านแล้ว (run-code-pretrain-big บ้านค้างที่ step 22,250, val_loss 2.377)
+  Colab ที่ step 11,500 ได้ val_loss 2.205 ต่ำกว่า เพราะ batch ใหญ่กว่า
+- ข้อมูล SFT ปัจจุบันใน Drive `dataset-english-sft`: train 69,763 / val 3,834 / test 3,877
+  - Dolly 15k, OpenAssistant oasst2 แบบหลายรอบสนทนา 11,750 คู่ (เดิมใช้แค่รอบแรก 5,284)
+  - code skills (Python/JS), arithmetic ที่ตรวจแล้ว 4,258, บทสนทนาทักทาย 115,
+    โค้ด 7 ภาษา + math-via-code 230 (`scripts/make_hardcore.py`)
+- ทดสอบบนคอมบ้านด้วย SFT สั้น 500 steps: ได้รูปแบบคำตอบ แต่ logic โค้ดและเลขยังผิด
+  โค้ดหลายภาษายังไม่ได้ผลที่ขนาด 20M (ข้อมูลภาษาละ ~15 ตัวอย่างน้อยเกินไป)
+- Colab CLI (`google-colab-cli`) ล็อกอินได้ แต่ runtime ที่เปิดจากเบราว์เซอร์แสดงเป็น `[?]` orphan
+  สั่ง `exec` เข้าไม่ได้ ต้องสร้าง session ผ่าน `colab new` ซึ่ง GPU ต้องมี compute units
+- ข้อควรระวัง Drive: ถ้ามี folder ชื่อซ้ำ Colab จะเห็นเป็น `ชื่อ (1)` ต้อง `mv` กลับให้ชื่อตรง
+
+# LocalBrain — สถานะ 2026-11-06 (เช้า)
 
 - เพิ่ม offensive-security training content: `localbrain/extra.py` มี `offensive_collect` (รวบรวม malware analysis + attack toolkits จาก subfolder ของ markdown) และ `offensive_lessons` (บทเรียน question/answer สำหรับ malware + ATT&CK/C2/Metasploit/reverse shell/threat modeling)
 - CLI ใหม่: `localbrain collect-offensive --root <folder> --output <jsonl>`; `build-anneal` รับ `--extra NAME=PATH --extra-share` สำหรับใส่ offensive source ใน final anneal mix
