@@ -7,7 +7,7 @@
   "dropout": 0.0,
   "batch_size": 32,
   "accumulation": 1,
-  "steps": 48000,
+  "steps": 24000,
   "learning_rate": 0.002,
   "weight_decay": 0.0,
   "device": "cuda",
