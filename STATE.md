@@ -22,6 +22,12 @@
   โค้ดหลายภาษายังไม่ได้ผลที่ขนาด 20M (ข้อมูลภาษาละ ~15 ตัวอย่างน้อยเกินไป)
 - Colab CLI (`google-colab-cli`) ล็อกอินได้ แต่ runtime ที่เปิดจากเบราว์เซอร์แสดงเป็น `[?]` orphan
   สั่ง `exec` เข้าไม่ได้ ต้องสร้าง session ผ่าน `colab new` ซึ่ง GPU ต้องมี compute units
+- 2026-11-07: ซื้อ Colab Pay As You Go 100 units (343 บาท). T4 กินจริง 1.15 units/ชม.
+  สั่งเทรนผ่าน Colab CLI ได้: `colab new -s NAME --gpu T4` → `colab drivemount` (ผู้ใช้กดอนุญาตลิงก์)
+  → `colab upload` repo zip → รัน retrain.py แบบ nohup
+  ข้อควรระวัง: session จาก CLI ถูกตัดเมื่อ kernel ว่าง ~15 นาที แม้ process เบื้องหลังยังรัน
+  ต้องรัน `colab exec --timeout 21600` สคริปต์ที่วนรอจน retrain.py จบ เพื่อให้ kernel busy ตลอด
+  resume ล่าสุดจาก step 19,200 (val_loss 2.141 ที่ step 18,500)
 - ข้อควรระวัง Drive: ถ้ามี folder ชื่อซ้ำ Colab จะเห็นเป็น `ชื่อ (1)` ต้อง `mv` กลับให้ชื่อตรง
 - Programming Dataset v4 (ภายนอก, 2.6M แถว / 100M คำ) มีโจทย์จริงแค่ ~38 แบบ (สูตรเลข 28 + SQL)
   `scripts/import_v4.py` คัดมา 8,360 แถว (0.35M คำ) ตรวจ Python ด้วย ast + ตัวคำนวณแบบจำกัด ไม่รันโค้ดจากชุดข้อมูล
