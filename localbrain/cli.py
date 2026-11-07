@@ -137,6 +137,20 @@ def parser():
     findc.add_argument("--db", help="Index file (default: <home>/project-index.sqlite3)")
     findc.add_argument("--limit", type=int, default=8)
     findc.add_argument("--full", action="store_true", help="Print whole function bodies")
+    blib = sub.add_parser("build-codelib", help="Build the central code library from CodeSearchNet parquet")
+    blib.add_argument("parquet", nargs="+", help="CodeSearchNet parquet files")
+    blib.add_argument("--db", help="Library file (default: <home>/codelib.sqlite3)")
+    blib.add_argument("--languages", nargs="*", help="Keep only these languages (e.g. python javascript)")
+    blib.add_argument("--limit", type=int, help="Stop after this many functions")
+    fex = sub.add_parser("find-example", help="Search the central code library")
+    fex.add_argument("request")
+    fex.add_argument("--db", help="Library file (default: <home>/codelib.sqlite3)")
+    fex.add_argument("--language")
+    fex.add_argument("--limit", type=int, default=5)
+    aso = sub.add_parser("ask-so", help="Search Stack Overflow accepted answers (cached, CC BY-SA)")
+    aso.add_argument("query")
+    aso.add_argument("--tagged", help="e.g. python;flask")
+    aso.add_argument("--limit", type=int, default=3)
     tool = sub.add_parser("tool", help="Explicit tool invocation, never auto-executes model text")
     tool.add_argument("name")
     tool.add_argument("--args", default="{}", help="JSON arguments")
@@ -153,6 +167,30 @@ def main():
         if args.command == "doctor":
             from .hardware import inspect
             emit(inspect())
+        elif args.command in {"build-codelib", "find-example"}:
+            from .codelib import CodeLibrary
+            lib = CodeLibrary(args.db or Path(args.home) / "codelib.sqlite3")
+            if args.command == "build-codelib":
+                result = lib.build_from_parquet(args.parquet, languages=args.languages, limit=args.limit)
+                lib.compact()
+                emit({**result, "library": str(lib.path), "stats": lib.stats()})
+            else:
+                hits = lib.search(args.request, language=args.language, limit=args.limit)
+                if not hits:
+                    print("no match")
+                for h in hits:
+                    print(f"[{h['language']}] {h['name']}  (score {h['score']:.2f})\n    {h['url']}")
+                    print("    " + "\n    ".join(h["code"].splitlines()[:12]) + "\n")
+                if hits:
+                    print("license: each example keeps its source repository's license (see url)")
+        elif args.command == "ask-so":
+            from .stackexchange import StackExchange
+            se = StackExchange(Path(args.home) / "stackexchange-cache.sqlite3")
+            for r in se.search(args.query, tagged=args.tagged, limit=args.limit):
+                print(f"■ {r['title']}  (score {r['score']}, by {r['author']})\n  {r['link']}  [{r['license']}]")
+                print("  " + "\n  ".join(r["answer"].splitlines()[:15]) + "\n")
+            if se.quota_remaining is not None:
+                print(f"quota remaining today: {se.quota_remaining}")
         elif args.command in {"index-project", "find-code"}:
             from .projindex import ProjectIndex
             index = ProjectIndex(args.db or Path(args.home) / "project-index.sqlite3")
