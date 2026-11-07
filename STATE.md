@@ -89,6 +89,12 @@
   batch 16×16×2048 = 524k token/step × 7,600 = ~4B token), `-smoke` (60 steps), `code-sft-200m.json`
   ข้อมูล: github-code-clean มี 880 shards (314 GB) ใช้ ~110, FineWeb-Edu sample-10BT 14 ไฟล์ (28.5 GB)
   ยังไม่ได้ใช้ units — รอ: สร้าง corpus 4B บน Colab CPU → smoke test L4 วัดความเร็วจริง → ตั้ง steps ให้พอดีงบ
+- 2026-11-07 แผนเสริมข้อมูลจาก Hugging Face (ยืนยัน: ใช้แค่ "ข้อมูล+เครื่องมือ" ไม่ใช้ "น้ำหนัก" ของใคร)
+  เสริมได้โดยไม่ต้องเทรนใหม่ตั้งแต่ต้น: python-edu (HuggingFaceTB/smollm-corpus, ODC-By) ใส่ขั้น anneal;
+  APPS (codeparrot/apps, MIT) ใส่ขั้น SFT; HumanEval (MIT) + MBPP (CC-BY-4.0) ใช้เป็นข้อสอบโจทย์แบบใหม่
+  เทสต์ของชุดพวกนี้รันใน sandbox บน Colab เท่านั้น (กฎข้อ 2 ห้ามรันโค้ดชุดข้อมูลบน host)
+  เลี่ยง: น้ำหนัก .safetensors/.bin/.gguf (กฎข้อ 1) และชุด Q&A ที่ AI อื่นแต่ง (มักมีการปฏิเสธ ขัดกฎข้อ 2)
+  ยืนยัน 2 กฎของผู้ใช้: (1) ไม่ใช้น้ำหนักสำเร็จรูป/โอเพนซอร์ส (2) ไม่ใส่ระบบปฏิเสธในโมเดล
 - ข้อควรระวัง Drive: ถ้ามี folder ชื่อซ้ำ Colab จะเห็นเป็น `ชื่อ (1)` ต้อง `mv` กลับให้ชื่อตรง
 - Programming Dataset v4 (ภายนอก, 2.6M แถว / 100M คำ) มีโจทย์จริงแค่ ~38 แบบ (สูตรเลข 28 + SQL)
   `scripts/import_v4.py` คัดมา 8,360 แถว (0.35M คำ) ตรวจ Python ด้วย ast + ตัวคำนวณแบบจำกัด ไม่รันโค้ดจากชุดข้อมูล
