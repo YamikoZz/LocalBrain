@@ -36,7 +36,14 @@
   SFT ล้มที่ ~step 500 ด้วย OutOfMemory (code-sft.json จำกัด VRAM 2.8 GiB สำหรับคอมบ้าน, curriculum ทำให้ลำดับยาวขึ้น)
   แก้: configs/code-sft-colab.json + LOCALBRAIN_SFT_CONFIG; retrain.py ข้ามขั้นที่ครบแล้ว และ resume SFT ที่ค้าง
   (เดิม pretrain ครบแล้วสั่งซ้ำจะ error "steps must exceed checkpoint step", SFT ค้างจะถูกข้ามผิด)
-  SFT step 250 val_loss 1.860
+  SFT ครบ 1,200 steps: val_loss 1.860 (250) → 1.759 (1,000) → **1.741 (1,200)**
+  code-eval (196 โจทย์, 8 ตัวอย่าง/โจทย์): overall pass@1 66.8%, pass@8 69.9%
+  - โจทย์แบบที่เคยเห็นตอนเทรน: Python pass@1 76.8%, JavaScript 82.9%
+  - โจทย์แบบที่ไม่เคยเห็น: Python pass@1 0% (pass@8 12.5%), JavaScript 0% → ยังจำรูปแบบ ไม่ได้คิดเอง
+  ทดสอบแชท: is_even ถูก, Lua add ถูก, "7 + 8 = 9" ผิด, reverse string JS ผิด,
+  "123 times 45" เขียนโค้ดแต่ตัวเลขผิด (45 * 45), hello ตอบแปลก
+  โมเดลดาวน์โหลดมาไว้ที่ workspace/run-english-sft2 แล้ว (best.pt = step 1,200) และปิดเครื่อง Colab แล้ว
+  units คงเหลือ 96.39 (รอบนี้ใช้ ~3.6 units ≈ 12 บาท รวมเวลาเครื่องค้างจากบั๊ก keepalive ~0.8)
   ใช้ ~2.6 units (~9 บาท) สำหรับ pretrain ที่เหลือ + anneal
 - 2026-11-07 ตกลงแผน Agent ครบ 9 ขั้น (ค้น → สรุป → แก้ → ตรวจ → จำ → รายงาน), คลัง,
   Local-first/Cloud-ready, คลังกลางพร้อมตัวกรอง, model growth, .gguf — รายละเอียดใน ROADMAP.md
