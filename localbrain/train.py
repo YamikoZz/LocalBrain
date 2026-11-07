@@ -76,16 +76,18 @@ def load_weights(path, model, data):
     saved = torch.load(path, map_location="cpu", weights_only=True)
     if saved["tokenizer_sha256"] != data.meta["tokenizer_sha256"]:
         raise ValueError("--init checkpoint tokenizer differs from this dataset's tokenizer")
-    for key in ("arch", "layers", "width", "heads", "vocab_size"):
-        if saved["config"].get(key, "gpt" if key == "arch" else None) != getattr(model.cfg, key):
+    defaults = {"arch": "gpt", "kv_heads": 0}
+    for key in ("arch", "layers", "width", "heads", "kv_heads", "vocab_size"):
+        if saved["config"].get(key, defaults.get(key)) != getattr(model.cfg, key):
             raise ValueError(f"--init checkpoint differs in {key}")
     model.load_state_dict(saved["model"])
     return saved["step"]
 
 
 def autocast(device, cfg):
-    return torch.autocast("cuda", dtype=torch.float16,
-                          enabled=cfg.precision == "fp16" and device.type == "cuda")
+    dtype = torch.bfloat16 if cfg.precision == "bf16" else torch.float16
+    return torch.autocast("cuda", dtype=dtype,
+                          enabled=cfg.precision in {"fp16", "bf16"} and device.type == "cuda")
 
 
 @torch.no_grad()
@@ -114,6 +116,9 @@ def train(dataset, run, cfg, resume=False, init=None):
     random.seed(cfg.seed)
     torch.manual_seed(cfg.seed)
     device = choose_device(cfg.device)
+    if device.type == "cuda":
+        torch.backends.cuda.matmul.allow_tf32 = True  # Ampere+ (L4/A100); ignored on T4
+        torch.backends.cudnn.allow_tf32 = True
     if device.type == "cuda" and cfg.vram_limit_gib:
         total = torch.cuda.get_device_properties(0).total_memory / 2**30
         torch.cuda.set_per_process_memory_fraction(min(1.0, cfg.vram_limit_gib / total))
@@ -137,7 +142,7 @@ def train(dataset, run, cfg, resume=False, init=None):
         for key in cfg.as_dict():
             default = Config().as_dict()[key]
             if key not in {"steps", "device", "cpu_threads", "eval_every", "eval_batches",
-                           "save_every", "polite", "vram_limit_gib", "decay_fraction",
+                           "save_every", "polite", "vram_limit_gib", "decay_fraction", "compile",
                            "min_lr_ratio"} and cfg.as_dict()[key] != saved["config"].get(key, default):
                 raise ValueError(f"Resume config differs: {key}")
         if saved["tokenizer_sha256"] != data.meta["tokenizer_sha256"]:
@@ -149,6 +154,8 @@ def train(dataset, run, cfg, resume=False, init=None):
     model = LanguageModel(cfg)
     init_step = load_weights(init, model, data) if init else None
     model.to(device)
+    # Compiled wrapper is used only for the training forward; checkpoints save the plain model.
+    forward = torch.compile(model) if cfg.compile and device.type == "cuda" else model
     optimizer = build_optimizer(model, cfg, device)
     for group in optimizer.param_groups:
         group["base_lr"] = group["lr"]
@@ -174,7 +181,7 @@ def train(dataset, run, cfg, resume=False, init=None):
     parameters = sum(p.numel() for p in model.parameters())
     print(json.dumps({"device": str(device), "parameters": parameters, "arch": cfg.arch,
                       "init_from": str(init) if init else None, "init_step": init_step,
-                      "optimizer": cfg.optimizer, "start_step": start,
+                      "optimizer": cfg.optimizer, "precision": cfg.precision, "start_step": start,
                       "target_step": cfg.steps}, ensure_ascii=False), flush=True)
     model.train()
     best_path = run / "best.json"
@@ -194,7 +201,7 @@ def train(dataset, run, cfg, resume=False, init=None):
             for _ in range(cfg.accumulation):
                 x, y = data.batch("train", device)
                 with autocast(device, cfg):
-                    _, loss = model(x, y)
+                    _, loss = forward(x, y)
                 if not torch.isfinite(loss):
                     raise RuntimeError("Non-finite loss; reduce learning rate")
                 scaler.scale(loss / cfg.accumulation).backward()

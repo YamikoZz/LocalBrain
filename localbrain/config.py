@@ -35,6 +35,8 @@ class Config:
     vram_limit_gib: float = 0.0
     polite: bool = False
     curriculum: bool = False  # instruction data: start with short examples, widen to all
+    kv_heads: int = 0          # grouped-query attention: key/value heads (0 = same as heads)
+    compile: bool = False      # torch.compile the training forward pass (CUDA)
 
     def __post_init__(self):
         for key in ("layers", "width", "heads", "context", "vocab_size",
@@ -44,6 +46,10 @@ class Config:
                 raise ValueError(f"{key} must be a positive integer")
         if self.width % self.heads:
             raise ValueError("width must be divisible by heads")
+        if self.kv_heads < 0 or (self.kv_heads and self.heads % self.kv_heads):
+            raise ValueError("kv_heads must divide heads (0 = no grouping)")
+        if self.kv_heads and self.arch != "v2":
+            raise ValueError("kv_heads needs arch v2")
         if self.vocab_size < 260 or self.vocab_size > 65535:
             raise ValueError("vocab_size must be between 260 and 65535")
         if self.context < 2 or not 0 <= self.dropout < 1:
@@ -60,8 +66,8 @@ class Config:
             raise ValueError("schedule must be constant or wsd")
         if self.warmup_steps < 0 or not 0 <= self.decay_fraction <= 1 or not 0 <= self.min_lr_ratio <= 1:
             raise ValueError("Invalid warmup_steps, decay_fraction or min_lr_ratio")
-        if self.precision not in {"fp32", "fp16"}:
-            raise ValueError("precision must be fp32 or fp16")
+        if self.precision not in {"fp32", "fp16", "bf16"}:
+            raise ValueError("precision must be fp32, fp16 or bf16")
         if self.vram_limit_gib < 0 or self.muon_lr <= 0:
             raise ValueError("Invalid vram_limit_gib or muon_lr")
         if self.learning_rate <= 0 or self.weight_decay < 0:

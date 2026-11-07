@@ -82,6 +82,13 @@
   เดโม B (**โมเดล 20M จริง**): ทั้ง 2 รอบ "no SEARCH/REPLACE blocks found" → not-fixed, โปรเจกต์ไม่ถูกแตะ
   → Agent พร้อม แต่สมองยังเขียน patch ไม่เป็น: ต้องโมเดลใหญ่ขึ้น + ข้อมูล SFT สอนเขียน patch (Phase B)
   เทสต์ใหม่ 5 รายการ (A1–A4 รวม 29 ผ่าน + RunnerTests เดิม 4)
+- 2026-11-07 เริ่มโมเดล ~200M (ข้าม 50M ตามที่ผู้ใช้เลือก; งบ ~65–75 units, กันไว้ ~20)
+  โค้ด: GQA (`kv_heads`, cache เก็บ k/v เล็ก), precision `bf16`, `compile` (torch.compile เฉพาะ forward ตอนเทรน), TF32
+  ทุกอย่างค่าเริ่มต้นเหมือนเดิม: โมเดล 20M เดิมโหลดและตอบได้เหมือนเดิม, เทสต์ GQA 4 ข้อ (รวม cache = recompute)
+  configs: `code-pretrain-200m.json` (width 1024, 16 ชั้น, 16 heads, kv 4, ctx 2048 = 193.0M,
+  batch 16×16×2048 = 524k token/step × 7,600 = ~4B token), `-smoke` (60 steps), `code-sft-200m.json`
+  ข้อมูล: github-code-clean มี 880 shards (314 GB) ใช้ ~110, FineWeb-Edu sample-10BT 14 ไฟล์ (28.5 GB)
+  ยังไม่ได้ใช้ units — รอ: สร้าง corpus 4B บน Colab CPU → smoke test L4 วัดความเร็วจริง → ตั้ง steps ให้พอดีงบ
 - ข้อควรระวัง Drive: ถ้ามี folder ชื่อซ้ำ Colab จะเห็นเป็น `ชื่อ (1)` ต้อง `mv` กลับให้ชื่อตรง
 - Programming Dataset v4 (ภายนอก, 2.6M แถว / 100M คำ) มีโจทย์จริงแค่ ~38 แบบ (สูตรเลข 28 + SQL)
   `scripts/import_v4.py` คัดมา 8,360 แถว (0.35M คำ) ตรวจ Python ด้วย ast + ตัวคำนวณแบบจำกัด ไม่รันโค้ดจากชุดข้อมูล

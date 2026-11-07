@@ -51,10 +51,12 @@ class BlockV2(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.heads = cfg.heads
+        self.kv_heads = cfg.kv_heads or cfg.heads
         self.head_dim = cfg.width // cfg.heads
         self.dropout = cfg.dropout
         self.norm1 = nn.RMSNorm(cfg.width)
-        self.qkv = nn.Linear(cfg.width, 3 * cfg.width, bias=False)
+        # Same layout as before when kv_heads == heads, so older checkpoints load unchanged.
+        self.qkv = nn.Linear(cfg.width, cfg.width + 2 * self.kv_heads * self.head_dim, bias=False)
         self.q_norm = nn.RMSNorm(self.head_dim)
         self.k_norm = nn.RMSNorm(self.head_dim)
         self.proj = nn.Linear(cfg.width, cfg.width, bias=False)
@@ -64,14 +66,24 @@ class BlockV2(nn.Module):
 
     def forward(self, x, cos, sin, cache=None):
         batch, length, width = x.shape
-        qkv = self.qkv(self.norm1(x)).view(batch, length, 3, self.heads, self.head_dim)
-        q, k, v = qkv.permute(2, 0, 3, 1, 4).unbind(0)
+        qkv = self.qkv(self.norm1(x))
+        if self.kv_heads == self.heads:
+            q, k, v = qkv.view(batch, length, 3, self.heads, self.head_dim).permute(2, 0, 3, 1, 4).unbind(0)
+        else:
+            kv = self.kv_heads * self.head_dim
+            q, k, v = qkv.split((width, kv, kv), dim=-1)
+            q = q.view(batch, length, self.heads, self.head_dim).transpose(1, 2)
+            k = k.view(batch, length, self.kv_heads, self.head_dim).transpose(1, 2)
+            v = v.view(batch, length, self.kv_heads, self.head_dim).transpose(1, 2)
         q, k = apply_rope(self.q_norm(q), cos, sin), apply_rope(self.k_norm(k), cos, sin)
         if cache is not None:
             if "k" in cache:
                 k = torch.cat((cache["k"], k), dim=2)
                 v = torch.cat((cache["v"], v), dim=2)
-            cache["k"], cache["v"] = k, v
+            cache["k"], cache["v"] = k, v  # cache keeps the small (un-repeated) k/v
+        if self.kv_heads != self.heads:
+            group = self.heads // self.kv_heads
+            k, v = k.repeat_interleave(group, dim=1), v.repeat_interleave(group, dim=1)
         # With a cache and a single new token, attending to every cached key is causal.
         causal = cache is None or length > 1
         if cache is not None and length > 1 and k.size(2) != length:
