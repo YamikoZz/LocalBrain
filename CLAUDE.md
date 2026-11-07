@@ -34,6 +34,7 @@
 | `localbrain/optim.py` | Muon |
 | `localbrain/coder.py`, `runner.py`, `tasks.py` | vibe coding: เขียน → รันเทสต์ → แก้ → คลังคำตอบ, โจทย์ที่ตรวจได้ (44 แบบ, Py/JS) |
 | `localbrain/knowledge.py`, `webtools.py` | คลัง SQLite FTS5, ค้นเว็บ + แคช |
+| `localbrain/projindex.py` | ดัชนีโปรเจกต์ระดับฟังก์ชัน (A1): `index-project`, `find-code` |
 | `scripts/retrain.py` | pipeline corpus → pretrain → anneal → SFT → code-eval (ข้ามขั้นที่เสร็จ, resume ได้) |
 | `scripts/make_*.py`, `import_v4.py` | สร้าง/คัดข้อมูล SFT |
 | `configs/*-colab.json` | ค่าสำหรับ Colab T4 (ตั้งผ่าน `LOCALBRAIN_PRETRAIN_CONFIG`, `LOCALBRAIN_SFT_CONFIG`) |
@@ -55,7 +56,7 @@
 - ผู้ใช้ไม่อยากรันงานหนักบนคอมบ้านแล้ว → งานหนักไป Colab (CPU/GPU) และ GitHub Actions
 
 ## งานถัดไป (ยังไม่เริ่ม — ถามผู้ใช้ก่อนว่าจะทำข้อไหน)
-- **Phase A (Agent ครบ 9 ขั้น):** A1 ดัชนีโปรเจกต์ → A2 คลัง CodeSearchNet + Stack Exchange API
+- **Phase A (Agent ครบ 9 ขั้น):** ~~A1 ดัชนีโปรเจกต์~~ ✅ (`localbrain/projindex.py`) → A2 คลัง CodeSearchNet + Stack Exchange API
   → A3 patch + sandbox → A4 ลูป สรุป→แก้→ตรวจ→จำ→รายงาน → A5 ตัวรัน Python/SymPy ในแชท
 - **Phase B (~50M):** GQA, context 4,096, sliding/global attention, FIM, BF16, model growth,
   ขยาย `tasks.py` ไป Luau/TS/C++, ข้อมูลโค้ด 1–2B token, เทรนบน Colab L4

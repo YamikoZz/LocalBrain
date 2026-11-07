@@ -48,6 +48,13 @@
 - 2026-11-07 ตกลงแผน Agent ครบ 9 ขั้น (ค้น → สรุป → แก้ → ตรวจ → จำ → รายงาน), คลัง,
   Local-first/Cloud-ready, คลังกลางพร้อมตัวกรอง, model growth, .gguf — รายละเอียดใน ROADMAP.md
   ยังเป็นแผน ยังไม่ได้เริ่มเขียนโค้ด Agent ใหม่
+- 2026-11-07 Phase A รอบ A1 เสร็จ: `localbrain/projindex.py` ดัชนีโปรเจกต์ระดับฟังก์ชัน (SQLite FTS5)
+  Python แยกด้วย ast (ไม่รันโค้ด), JS/TS/Lua/C/C++/Go/Rust/Ruby/PHP/Shell/SQL ด้วย regex, ไฟล์ไม่มีฟังก์ชัน = module
+  ชื่อตัวแปรถูกแยกคำ (check_password → check password) ให้คำสั่งภาษาอังกฤษค้นเจอ, อัปเดตเฉพาะไฟล์ที่เปลี่ยน, ข้าม node_modules/.venv/workspace
+  คำสั่ง: `index-project --root .` และ `find-code "คำขอ"`; เทสต์ใหม่ 8 รายการผ่าน
+  ลองกับโค้ด LocalBrain เอง: 49 ไฟล์ 301 ฟังก์ชัน ใน 0.27 วินาที ไฟล์ดัชนี ~1 MB
+  ค้น "resume training from a checkpoint" เจอ train.py/checkpoint_save, "split identifier into words" เจอ projindex
+  จุดอ่อน: ไฟล์เทสต์มักติดอันดับต้นเพราะมีคำซ้ำเยอะ
 - ข้อควรระวัง Drive: ถ้ามี folder ชื่อซ้ำ Colab จะเห็นเป็น `ชื่อ (1)` ต้อง `mv` กลับให้ชื่อตรง
 - Programming Dataset v4 (ภายนอก, 2.6M แถว / 100M คำ) มีโจทย์จริงแค่ ~38 แบบ (สูตรเลข 28 + SQL)
   `scripts/import_v4.py` คัดมา 8,360 แถว (0.35M คำ) ตรวจ Python ด้วย ast + ตัวคำนวณแบบจำกัด ไม่รันโค้ดจากชุดข้อมูล

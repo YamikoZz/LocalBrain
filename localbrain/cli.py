@@ -128,6 +128,15 @@ def parser():
     play.add_argument("--run", default="workspace/run-code-pretrain")
     play.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     play.add_argument("--temperature", type=float, default=0.6)
+    pindex = sub.add_parser("index-project", help="Index a code project's functions/classes (incremental)")
+    pindex.add_argument("--root", default=".", help="Project folder to scan")
+    pindex.add_argument("--db", help="Index file (default: <home>/project-index.sqlite3)")
+    pindex.add_argument("--compact", action="store_true", help="Optimize and VACUUM after indexing")
+    findc = sub.add_parser("find-code", help="Find functions in the indexed project for a request")
+    findc.add_argument("request", help='e.g. "login fails with TypeError in check_password"')
+    findc.add_argument("--db", help="Index file (default: <home>/project-index.sqlite3)")
+    findc.add_argument("--limit", type=int, default=8)
+    findc.add_argument("--full", action="store_true", help="Print whole function bodies")
     tool = sub.add_parser("tool", help="Explicit tool invocation, never auto-executes model text")
     tool.add_argument("name")
     tool.add_argument("--args", default="{}", help="JSON arguments")
@@ -144,6 +153,24 @@ def main():
         if args.command == "doctor":
             from .hardware import inspect
             emit(inspect())
+        elif args.command in {"index-project", "find-code"}:
+            from .projindex import ProjectIndex
+            index = ProjectIndex(args.db or Path(args.home) / "project-index.sqlite3")
+            if args.command == "index-project":
+                result = index.index(args.root)
+                if args.compact:
+                    index.compact()
+                emit({**result, **{"index": str(index.path)}, "stats": index.stats()})
+            else:
+                hits = index.search(args.request, limit=args.limit)
+                if not hits:
+                    print("no match (run index-project first, or use other words)")
+                for h in hits:
+                    print(f"{h['path']}:{h['start']}-{h['end']}  [{h['kind']}] {h['name']}  (score {h['score']:.2f})")
+                    body = h["body"] if args.full else "\n".join(h["body"].splitlines()[:6])
+                    print("    " + body.replace("\n", "\n    ") + "\n")
+                if hits:
+                    print("keywords:", ", ".join(hits[0]["keywords"]))
         elif args.command == "prepare":
             from .config import Config
             from .data import prepare
