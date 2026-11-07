@@ -64,6 +64,15 @@
   `localbrain/stackexchange.py` (`ask-so`): ค้นคำตอบที่ยอมรับแล้ว แคช 30 วัน, เคารพ backoff, key จาก env ไม่ถูกเก็บ, CC BY-SA
   ลองจริง: error "Unicode-objects must be encoded before hashing" ได้คำตอบคะแนน 441 พร้อม `.encode('utf-8')`
   เทสต์ใหม่ 6 รายการ (รวม A1+A2 = 14 ผ่าน)
+- 2026-11-07 Phase A รอบ A3 เสร็จ: แก้ไฟล์ + รันเทสต์
+  `localbrain/patch.py` (`apply-patch`): บล็อก SEARCH/REPLACE หลายไฟล์, จับแบบตรงตัว (ต้องต้นบรรทัด) → ไม่สนช่องว่างท้าย
+  → ไม่สนย่อหน้า (ปรับย่อหน้าให้), ต้องเจอที่เดียว, ทั้งหมดหรือไม่เลย, คืน backup ให้ย้อนกลับ, ห้าม path นอกโปรเจกต์/.git
+  `localbrain/projtest.py` (`run-project-tests`): ก๊อปโปรเจกต์ไปโฟลเดอร์ชั่วคราว รัน unittest/pytest/node --test
+  จำกัดเวลา + หน่วยความจำ 1 GB + priority ต่ำ, สรุปจำนวนผ่าน/ผิด + ข้อผิดแรก (ไม่ใช่ security boundary, เน็ตไม่ถูกปิด)
+  runner._execute รับค่าจำกัดเป็นพารามิเตอร์ (ค่าเดิมไม่เปลี่ยน; RunnerTests เดิม 4 ข้อผ่าน)
+  เดโมลูปจริง: เทสต์ 2/2 ผิด (TypeError: Strings must be encoded) → apply-patch → 2/2 ผ่าน
+  เจอและแก้บั๊ก: SEARCH ไม่มีย่อหน้าเคยไปจับกลางบรรทัด; tests/ ไม่มี __init__.py ใช้ `-t .` ไม่ได้
+  เทสต์ใหม่ 10 รายการ (A1–A3 รวม 24 ผ่าน)
 - ข้อควรระวัง Drive: ถ้ามี folder ชื่อซ้ำ Colab จะเห็นเป็น `ชื่อ (1)` ต้อง `mv` กลับให้ชื่อตรง
 - Programming Dataset v4 (ภายนอก, 2.6M แถว / 100M คำ) มีโจทย์จริงแค่ ~38 แบบ (สูตรเลข 28 + SQL)
   `scripts/import_v4.py` คัดมา 8,360 แถว (0.35M คำ) ตรวจ Python ด้วย ast + ตัวคำนวณแบบจำกัด ไม่รันโค้ดจากชุดข้อมูล

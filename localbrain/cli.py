@@ -151,6 +151,13 @@ def parser():
     aso.add_argument("query")
     aso.add_argument("--tagged", help="e.g. python;flask")
     aso.add_argument("--limit", type=int, default=3)
+    ap = sub.add_parser("apply-patch", help="Apply SEARCH/REPLACE edit blocks to a project (all-or-nothing)")
+    ap.add_argument("patch", help="File with SEARCH/REPLACE blocks ('-' = stdin)")
+    ap.add_argument("--root", default=".")
+    ap.add_argument("--dry-run", action="store_true", help="Show the diff only")
+    rpt = sub.add_parser("run-project-tests", help="Run a project's tests on a temporary copy")
+    rpt.add_argument("--root", default=".")
+    rpt.add_argument("--timeout", type=int, default=120)
     tool = sub.add_parser("tool", help="Explicit tool invocation, never auto-executes model text")
     tool.add_argument("name")
     tool.add_argument("--args", default="{}", help="JSON arguments")
@@ -167,6 +174,19 @@ def main():
         if args.command == "doctor":
             from .hardware import inspect
             emit(inspect())
+        elif args.command == "apply-patch":
+            from .patch import apply_patch
+            text = sys.stdin.read() if args.patch == "-" else Path(args.patch).read_text(encoding="utf-8")
+            result = apply_patch(args.root, text, dry_run=args.dry_run)
+            print(result["diff"] or "(no changes)")
+            print(("would change: " if args.dry_run else "changed: ") + ", ".join(result["files"]))
+        elif args.command == "run-project-tests":
+            from .projtest import run_project_tests
+            result = run_project_tests(args.root, timeout=args.timeout)
+            tail = result.pop("output_tail", "")
+            emit(result)
+            if result["status"] != "pass" and tail and not result.get("first_failure"):
+                print(tail)
         elif args.command in {"build-codelib", "find-example"}:
             from .codelib import CodeLibrary
             lib = CodeLibrary(args.db or Path(args.home) / "codelib.sqlite3")

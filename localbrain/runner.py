@@ -170,7 +170,7 @@ def toolchains():
     return found
 
 
-def _limits_windows(pid):
+def _limits_windows(pid, memory=MEMORY_LIMIT, processes=1):
     import ctypes
     from ctypes import wintypes
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -196,8 +196,8 @@ def _limits_windows(pid):
     info = EXTENDED()
     # PROCESS_MEMORY | ACTIVE_PROCESS | KILL_ON_JOB_CLOSE | DIE_ON_UNHANDLED_EXCEPTION
     info.Basic.LimitFlags = 0x100 | 0x8 | 0x2000 | 0x400
-    info.Basic.ActiveProcessLimit = 1
-    info.ProcessMemoryLimit = MEMORY_LIMIT
+    info.Basic.ActiveProcessLimit = processes
+    info.ProcessMemoryLimit = memory
     if not kernel.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)):
         raise OSError(ctypes.get_last_error(), "SetInformationJobObject failed")
     handle = kernel.OpenProcess(0x0001 | 0x0100, False, pid)  # TERMINATE | SET_QUOTA
@@ -207,16 +207,17 @@ def _limits_windows(pid):
     return job, kernel
 
 
-def _execute(command, cwd, timeout):
+def _execute(command, cwd, timeout, memory=MEMORY_LIMIT, processes=1, env_extra=None,
+             output_limit=OUTPUT_LIMIT):
     env = {"PATH": os.environ.get("PATH", ""), "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
-           "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"}
+           "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1", **(env_extra or {})}
     kwargs = {}
     if os.name == "nt":
         kwargs["creationflags"] = 0x08000000 | 0x00004000  # CREATE_NO_WINDOW | BELOW_NORMAL
     else:
         def limit():
             import resource
-            resource.setrlimit(resource.RLIMIT_AS, (MEMORY_LIMIT * 4, MEMORY_LIMIT * 4))
+            resource.setrlimit(resource.RLIMIT_AS, (memory * 4, memory * 4))
             resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
             os.nice(10)
         kwargs["preexec_fn"] = limit
@@ -225,7 +226,7 @@ def _execute(command, cwd, timeout):
     job = None
     if os.name == "nt":
         try:
-            job = _limits_windows(proc.pid)
+            job = _limits_windows(proc.pid, memory, processes)
         except OSError:
             proc.kill()
             proc.wait()
@@ -234,8 +235,8 @@ def _execute(command, cwd, timeout):
 
     def drain():
         while block := proc.stdout.read1(4096):
-            if len(output) < OUTPUT_LIMIT:
-                output.extend(block[:OUTPUT_LIMIT - len(output)])
+            if len(output) < output_limit:
+                output.extend(block[:output_limit - len(output)])
 
     reader = threading.Thread(target=drain, daemon=True)
     reader.start()

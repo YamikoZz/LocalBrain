@@ -35,6 +35,7 @@
 | `localbrain/coder.py`, `runner.py`, `tasks.py` | vibe coding: เขียน → รันเทสต์ → แก้ → คลังคำตอบ, โจทย์ที่ตรวจได้ (44 แบบ, Py/JS) |
 | `localbrain/knowledge.py`, `webtools.py` | คลัง SQLite FTS5, ค้นเว็บ + แคช |
 | `localbrain/projindex.py` | ดัชนีโปรเจกต์ระดับฟังก์ชัน (A1): `index-project`, `find-code` |
+| `localbrain/patch.py`, `projtest.py` | แก้ไฟล์ด้วย SEARCH/REPLACE (`apply-patch`) + รันเทสต์โปรเจกต์บนสำเนาชั่วคราว (`run-project-tests`) (A3) |
 | `localbrain/codelib.py`, `stackexchange.py` | คลังกลาง CodeSearchNet (`build-codelib`, `find-example`) + Stack Overflow (`ask-so`, แคช 30 วัน) (A2) |
 | `scripts/retrain.py` | pipeline corpus → pretrain → anneal → SFT → code-eval (ข้ามขั้นที่เสร็จ, resume ได้) |
 | `scripts/make_*.py`, `import_v4.py` | สร้าง/คัดข้อมูล SFT |
@@ -58,7 +59,7 @@
 
 ## งานถัดไป (ยังไม่เริ่ม — ถามผู้ใช้ก่อนว่าจะทำข้อไหน)
 - **Phase A (Agent ครบ 9 ขั้น):** ~~A1 ดัชนีโปรเจกต์~~ ✅ (`localbrain/projindex.py`) → ~~A2 คลัง CodeSearchNet + Stack Exchange API~~ ✅
-  → A3 patch + sandbox → A4 ลูป สรุป→แก้→ตรวจ→จำ→รายงาน → A5 ตัวรัน Python/SymPy ในแชท
+  → ~~A3 patch + sandbox~~ ✅ → A4 ลูป สรุป→แก้→ตรวจ→จำ→รายงาน → A5 ตัวรัน Python/SymPy ในแชท
 - **Phase B (~50M):** GQA, context 4,096, sliding/global attention, FIM, BF16, model growth,
   ขยาย `tasks.py` ไป Luau/TS/C++, ข้อมูลโค้ด 1–2B token, เทรนบน Colab L4
 - ตัววัดความสำเร็จหลัก: คะแนน **โจทย์แบบใหม่ (unseen)** ใน code-eval
