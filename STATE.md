@@ -96,6 +96,12 @@
   loss 17.7->4.59 ใน 60 steps (เทรนได้จริง). ปิด L4 แล้ว (smoke ใช้ ~1.3 units, เหลือ 94.77)
   สรุปงบ: 4B @ batch4 ~= 50 ชม. ~= 87 units -> เกินงบ+เกิน 1 session. VRAM เหลือเยอะ batch 8/12 น่าจะเร็วกว่า (ยังไม่วัด)
   ติดหลัก: ไม่มี Drive = กู้ข้าม session ไม่ได้ -> รันยาวหลาย session ไม่ปลอดภัย. รอผู้ใช้เลือกทิศทาง (ดู report)
+- 2026-11-08 ผู้ใช้เลือก A: เทรนเต็ม 7,600 steps (4B token) + Drive เก็บ checkpoint/corpus (`MyDrive/LocalBrain-200m/`)
+  Drive: `colab drivemount -s NAME /content/drive` ต้องให้ผู้ใช้กดยืนยัน 1 ครั้ง/เครื่องใหม่ (เครื่องเดิม remount ไม่ต้องกด;
+  restart-kernel ทำ mount หลุด ต้อง drivemount ใหม่). Git Bash ต้อง `MSYS_NO_PATHCONV=1` ไม่งั้น path เพี้ยน
+  วัด batch 8 accum 32: 23.6 วิ/step (batch 4 = 23.9) เร็วขึ้นแค่ ~1%, VRAM 16.3 GiB -> GPU เต็มกำลังแล้ว ใช้ batch 4
+  งบจริง: 7,600 x 23.6s ~= 50 ชม. x 1.94/ชม. ~= 97 units > ที่มี 94 -> ผู้ใช้ต้องเติมเอง ~10-15 units
+  สร้าง corpus 4B ใหม่บน CPU (0.08/ชม.) ลง Drive ครั้งเดียว ใช้ซ้ำทุก session (resume ต้องใช้ meta.json เดิม)
 - 2026-11-07 สัดส่วนภาษาที่ผู้ใช้ต้องการ (คุมในขั้น SFT; เทรนหลักยังใช้ GitHub ปนตามธรรมชาติ):
   Python + Lua = เน้นสูง เท่ากัน (กันเอียง) | JS + TS = กลาง จับคู่กัน (คล้ายกัน สอนเสริมกัน) | C/C++ = ลดลง
   หมายเหตุ: Lua ข้อมูลคุณภาพบน GitHub น้อย อาจต้องสร้างโจทย์ Lua เพิ่มใน tasks.py เพื่อดันให้เท่า Python
