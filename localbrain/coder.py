@@ -47,7 +47,7 @@ class CodeModel:
         self.eos = self.tokenizer.token_to_id("[EOS]")
 
     def sample(self, question, n=1, temperature=0.8, top_k=40, max_tokens=200, greedy=False,
-               repetition_penalty=1.3, no_repeat_ngram=3):
+               repetition_penalty=1.3, no_repeat_ngram=3, raw=False):
         ids = [self.tokenizer.token_to_id("[BOS]")] + self.tokenizer.encode(prompt_text(question)).ids
         room = self.cfg.context - len(ids)
         if room < 16:
@@ -60,7 +60,8 @@ class CodeModel:
         for row in out[:, len(ids):].tolist():
             if self.eos in row:
                 row = row[:row.index(self.eos)]
-            texts.append(clean(self.tokenizer.decode(row, skip_special_tokens=True)))
+            text = self.tokenizer.decode(row, skip_special_tokens=True)
+            texts.append(text if raw else clean(text))
         return texts
 
 

@@ -158,6 +158,17 @@ def parser():
     rpt = sub.add_parser("run-project-tests", help="Run a project's tests on a temporary copy")
     rpt.add_argument("--root", default=".")
     rpt.add_argument("--timeout", type=int, default=120)
+    agent = sub.add_parser("agent", help="Full agent: search -> summarize -> patch -> test -> repeat -> remember -> report")
+    agent.add_argument("request", help='e.g. "login fails with TypeError in check_password"')
+    agent.add_argument("--root", default=".")
+    agent.add_argument("--run", default="workspace/run-english-sft2", help="Model checkpoint that writes patches")
+    agent.add_argument("--patches", nargs="+", help="Use these SEARCH/REPLACE files instead of a model (demo/testing)")
+    agent.add_argument("--rounds", type=int, default=3)
+    agent.add_argument("--timeout", type=int, default=120)
+    agent.add_argument("--codelib", help="Central library file (default: <home>/codelib.sqlite3 if present)")
+    agent.add_argument("--web", action="store_true", help="Also search Stack Overflow for the error")
+    agent.add_argument("--allow-unverified", action="store_true", help="Keep changes in projects without tests")
+    agent.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     tool = sub.add_parser("tool", help="Explicit tool invocation, never auto-executes model text")
     tool.add_argument("name")
     tool.add_argument("--args", default="{}", help="JSON arguments")
@@ -174,6 +185,17 @@ def main():
         if args.command == "doctor":
             from .hardware import inspect
             emit(inspect())
+        elif args.command == "agent":
+            from .agent import ModelBrain, ScriptedBrain, format_report, run_agent
+            brain = (ScriptedBrain([Path(p).read_text(encoding="utf-8") for p in args.patches]) if args.patches
+                     else ModelBrain(args.run, device=args.device))
+            home = Path(args.home)
+            report = run_agent(args.root, args.request, brain, index_db=home / "project-index.sqlite3",
+                               experience_db=home / "experience.sqlite3",
+                               codelib_db=args.codelib or home / "codelib.sqlite3", web=args.web,
+                               rounds=args.rounds, timeout=args.timeout, allow_unverified=args.allow_unverified,
+                               log=lambda msg: print(msg, file=sys.stderr))
+            print(format_report(report))
         elif args.command == "apply-patch":
             from .patch import apply_patch
             text = sys.stdin.read() if args.patch == "-" else Path(args.patch).read_text(encoding="utf-8")
