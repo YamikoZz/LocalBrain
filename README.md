@@ -8,6 +8,7 @@
 - มีคลังความรู้ SQLite FTS5, ค้น/อ่านเว็บ และเครื่องมือที่เรียกผ่าน CLI
 - แผนสถาปัตยกรรม: [ROADMAP.md](ROADMAP.md) · สถานะและตัวเลขล่าสุด: [STATE.md](STATE.md)
 - คู่มืออ่านง่าย: [Wiki](https://github.com/YamikoZz/LocalBrain/wiki)
+- เปเปอร์ (technical report, อังกฤษ): [docs/paper/LocalBrain-technical-report.md](docs/paper/LocalBrain-technical-report.md)
 
 ## สถานะปัจจุบัน (2026-11-08)
 
