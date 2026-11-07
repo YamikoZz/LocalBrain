@@ -96,6 +96,13 @@
   loss 17.7->4.59 ใน 60 steps (เทรนได้จริง). ปิด L4 แล้ว (smoke ใช้ ~1.3 units, เหลือ 94.77)
   สรุปงบ: 4B @ batch4 ~= 50 ชม. ~= 87 units -> เกินงบ+เกิน 1 session. VRAM เหลือเยอะ batch 8/12 น่าจะเร็วกว่า (ยังไม่วัด)
   ติดหลัก: ไม่มี Drive = กู้ข้าม session ไม่ได้ -> รันยาวหลาย session ไม่ปลอดภัย. รอผู้ใช้เลือกทิศทาง (ดู report)
+- 2026-11-08 กฎข้อ 3 ผ่อน: ใช้ข้อมูลที่ AI สร้างได้ (เช็ก license/ToS, ห้ามลอกข้อสอบ, ไม่ใช้ Claude สร้างจำนวนมาก)
+  สำรวจชุด SFT โค้ดบน HF (license จาก API): self-oss-instruct-sc2-exec-filter-50k (ODC-By, StarCoder2 สร้าง,
+  ผ่านการรันแล้ว, Python) | nvidia/OpenCodeInstruct (CC-BY-4.0, 1M-10M, มีคะแนน test ต่อข้อ) |
+  OpenCoder opc-sft-stage2 (MIT, มี test cases) | Magicoder OSS-75K (MIT แต่ gpt-3.5 สร้าง -> ติดเงื่อนไข OpenAI) |
+  Magicoder Evol-110K / CodeFeedback (Apache-2.0 แต่มาจาก GPT-4) | glaive-code-assistant-v3 (Apache-2.0, ไม่ระบุที่มา)
+  ไม่มีชุดไหนเน้น Lua/TS -> ช่องว่างต้องเติมเอง. ห้ามรันโค้ดของชุดข้อมูลบนเครื่องบ้าน (กฎ 2): ใช้คะแนน test ที่มากับชุด
+  หรือรันบน Colab. ยังไม่ได้ดาวน์โหลด
 - 2026-11-08 ตรวจอิสระ (GPT agent ในเครื่อง, read-only): รัน greedy_code ทั้ง 196 ข้อจาก workspace/run-english-sft2/code-eval.json
   ซ้ำได้ 131/196 ตรงทุกข้อ (seen Py 63/82, JS 68/82; unseen 0/32; pass@8 ตาม flag 137/196 = 69.9%) ผมนับซ้ำได้เท่ากัน
   แก้ตามข้อเสนอ: code-eval เก็บ sample_codes + sample_status ทุกข้อ (ตรวจ pass@k ซ้ำได้); เทสต์ agent ใหม่ใช้โค้ดที่
