@@ -96,6 +96,13 @@
   loss 17.7->4.59 ใน 60 steps (เทรนได้จริง). ปิด L4 แล้ว (smoke ใช้ ~1.3 units, เหลือ 94.77)
   สรุปงบ: 4B @ batch4 ~= 50 ชม. ~= 87 units -> เกินงบ+เกิน 1 session. VRAM เหลือเยอะ batch 8/12 น่าจะเร็วกว่า (ยังไม่วัด)
   ติดหลัก: ไม่มี Drive = กู้ข้าม session ไม่ได้ -> รันยาวหลาย session ไม่ปลอดภัย. รอผู้ใช้เลือกทิศทาง (ดู report)
+- 2026-11-08 `scripts/import_code_sft.py`: ชุด SFT โค้ดสาธารณะ -> workspace/raw-sft/hf-code.jsonl (278 MB, ไม่ขึ้น git)
+  ได้ 228,453 ข้อ: Python 223,612 | C++ 1,250 | JS 1,000 | TS 985 | Lua 965 | C 641
+  (selfoss 50K, opc-edu, opc-mceval [คัดเฉพาะ 6 ภาษาเป้าหมาย], OpenCodeInstruct 2/50 shards เฉพาะข้อที่ test ผ่านครบ)
+  คัดข้อสอบทิ้ง: โจทย์ที่มี 13 คำติดกันซ้ำ HumanEval/MBPP หรือมีโจทย์ MBPP สั้นทั้งประโยค (ตัวกรองจับ HumanEval 164/164,
+  MBPP test 500/500) -> ทิ้ง 1,587; ชื่อฟังก์ชันกลุ่ม HELD_OUT ทิ้ง 913; ซ้ำกันเอง 26,323; คำปฏิเสธ 24
+  (รอบแรกเทียบโค้ดคำตอบด้วย -> ตัดผิด ~93K เพราะโค้ดพื้นฐานเหมือนกันทุกที่ เลยเทียบเฉพาะตัวโจทย์)
+  ปัญหา: Python ล้นมาก Lua/TS/JS ~1K ต่อภาษา -> ต้องคุมสัดส่วนตอนผสม SFT + ให้ AI อีกตัวเติม Lua/TS/JS
 - 2026-11-08 กฎข้อ 3 ผ่อน: ใช้ข้อมูลที่ AI สร้างได้ (เช็ก license/ToS, ห้ามลอกข้อสอบ, ไม่ใช้ Claude สร้างจำนวนมาก)
   สำรวจชุด SFT โค้ดบน HF (license จาก API): self-oss-instruct-sc2-exec-filter-50k (ODC-By, StarCoder2 สร้าง,
   ผ่านการรันแล้ว, Python) | nvidia/OpenCodeInstruct (CC-BY-4.0, 1M-10M, มีคะแนน test ต่อข้อ) |
