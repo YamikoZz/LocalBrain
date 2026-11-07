@@ -32,7 +32,11 @@
   ปุ่ม Sponsor จะแสดงเมื่อโปรไฟล์ได้รับอนุมัติและ repo เป็น public
   เป้างบและขนาดโมเดล (20M → 1B, เป้าเสริม 3B) อยู่ใน README "เป้าหมายขนาดโมเดลและงบ"
 - 2026-11-07 Colab รอบ resume: pretrain ครบ 24,000 steps val_loss 2.006 (14,000: 2.177, 22,000: 2.058)
-  anneal 4,000 steps เสร็จ (val 2.161 บนชุด anneal, เทียบตรงกับ pretrain ไม่ได้) → SFT กำลังรัน
+  anneal 4,000 steps เสร็จ (val 2.161 บนชุด anneal, เทียบตรงกับ pretrain ไม่ได้)
+  SFT ล้มที่ ~step 500 ด้วย OutOfMemory (code-sft.json จำกัด VRAM 2.8 GiB สำหรับคอมบ้าน, curriculum ทำให้ลำดับยาวขึ้น)
+  แก้: configs/code-sft-colab.json + LOCALBRAIN_SFT_CONFIG; retrain.py ข้ามขั้นที่ครบแล้ว และ resume SFT ที่ค้าง
+  (เดิม pretrain ครบแล้วสั่งซ้ำจะ error "steps must exceed checkpoint step", SFT ค้างจะถูกข้ามผิด)
+  SFT step 250 val_loss 1.860
   ใช้ ~2.6 units (~9 บาท) สำหรับ pretrain ที่เหลือ + anneal
 - 2026-11-07 ตกลงแผน Agent ครบ 9 ขั้น (ค้น → สรุป → แก้ → ตรวจ → จำ → รายงาน), คลัง,
   Local-first/Cloud-ready, คลังกลางพร้อมตัวกรอง, model growth, .gguf — รายละเอียดใน ROADMAP.md

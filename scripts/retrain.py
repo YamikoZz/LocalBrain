@@ -11,6 +11,7 @@ New outputs use *-big / *2 dirs so the current step-250 model stays as a fallbac
 Each stage is resumable: re-running the script skips finished stages and resumes a
 half-done pretrain from its latest checkpoint.
 """
+import json
 import os
 import subprocess
 import sys
@@ -46,6 +47,15 @@ def log(msg):
     print(line, end="", flush=True)
 
 
+def last_step(run_dir):
+    """Last step logged in run_dir/metrics.jsonl (0 if none)."""
+    path = ROOT / run_dir / "metrics.jsonl"
+    if not path.exists():
+        return 0
+    lines = [l for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    return json.loads(lines[-1]).get("step", 0) if lines else 0
+
+
 def run(name, args):
     log(f"run: {name}")
     r = subprocess.run([PY, "-m", "localbrain.cli", *args], cwd=ROOT, env=ENV)
@@ -69,10 +79,14 @@ def main():
     # Stage 1: fresh (or resumed) pretrain on the big corpus.
     log(f"pretrain config: {PRETRAIN_CONFIG}")
     pre_args = ["train", "--data", str(BIG), "--run", str(PRE), "--config", PRETRAIN_CONFIG]
-    if (PRE / "latest.pt").exists():
-        pre_args.append("--resume")
-        log("pretrain: resuming from existing checkpoint")
-    run("pretrain 48000 on big corpus", pre_args)
+    target = json.loads((ROOT / PRETRAIN_CONFIG).read_text(encoding="utf-8"))["steps"]
+    if last_step(PRE) >= target:
+        log(f"skip pretrain (already at step {target})")  # --resume would refuse a finished run
+    else:
+        if (PRE / "latest.pt").exists():
+            pre_args.append("--resume")
+            log("pretrain: resuming from existing checkpoint")
+        run(f"pretrain {target} on big corpus", pre_args)
 
     # Stage 2: anneal from the new base (existing dataset-anneal is tokenizer-compatible).
     if (ANNEAL / "latest.pt").exists():
@@ -83,12 +97,15 @@ def main():
              "--config", "configs/code-anneal.json", "--init", str(PRE / "latest.pt")])
 
     # Stage 3: short anti-overfit SFT.
-    if (SFT / "latest.pt").exists():
-        log("skip sft (run-english-sft2 exists)")
+    sft_target = json.loads((ROOT / SFT_CONFIG).read_text(encoding="utf-8"))["steps"]
+    sft_args = ["train", "--data", "workspace/dataset-english-sft", "--run", str(SFT), "--config", SFT_CONFIG]
+    if last_step(SFT) >= sft_target:
+        log("skip sft (already finished)")
+    elif (SFT / "latest.pt").exists():
+        run("sft (resume interrupted run)", [*sft_args, "--resume"])
     else:
         run("sft (short, anti-overfit; dataset now includes verified arithmetic)",
-            ["train", "--data", "workspace/dataset-english-sft", "--run", str(SFT),
-             "--config", SFT_CONFIG, "--init", str(ANNEAL / "latest.pt")])
+            [*sft_args, "--init", str(ANNEAL / "latest.pt")])
 
     # Stage 4: evaluate the new model.
     run("code-eval on new SFT",
