@@ -89,6 +89,13 @@
   batch 16×16×2048 = 524k token/step × 7,600 = ~4B token), `-smoke` (60 steps), `code-sft-200m.json`
   ข้อมูล: github-code-clean มี 880 shards (314 GB) ใช้ ~110, FineWeb-Edu sample-10BT 14 ไฟล์ (28.5 GB)
   ยังไม่ได้ใช้ units — รอ: สร้าง corpus 4B บน Colab CPU → smoke test L4 วัดความเร็วจริง → ตั้ง steps ให้พอดีงบ
+- 2026-11-07 Corpus 200M เสร็จ 4.0B token (train 4,002M/val 31.7M, tokenizer sha ff5386c5) แต่ไฟล์ 8GB
+  ดึงผ่าน colab download ไม่ได้ (500 error ไฟล์ใหญ่); ไฟล์เล็กได้ -> corpus สร้างใหม่ได้ (deterministic) ไม่ต้องย้าย
+- 2026-11-07 Smoke test 200M บน L4 (22 GiB): 192,973,824 params, bf16, Muon, compile
+  batch 16 = OOM (ใช้ 21.9 GiB เต็ม); batch 4 accum 64 (524k tok/step) = พอดี peak 9.5 GiB, ~24 วินาที/step
+  loss 17.7->4.59 ใน 60 steps (เทรนได้จริง). ปิด L4 แล้ว (smoke ใช้ ~1.3 units, เหลือ 94.77)
+  สรุปงบ: 4B @ batch4 ~= 50 ชม. ~= 87 units -> เกินงบ+เกิน 1 session. VRAM เหลือเยอะ batch 8/12 น่าจะเร็วกว่า (ยังไม่วัด)
+  ติดหลัก: ไม่มี Drive = กู้ข้าม session ไม่ได้ -> รันยาวหลาย session ไม่ปลอดภัย. รอผู้ใช้เลือกทิศทาง (ดู report)
 - 2026-11-07 สัดส่วนภาษาที่ผู้ใช้ต้องการ (คุมในขั้น SFT; เทรนหลักยังใช้ GitHub ปนตามธรรมชาติ):
   Python + Lua = เน้นสูง เท่ากัน (กันเอียง) | JS + TS = กลาง จับคู่กัน (คล้ายกัน สอนเสริมกัน) | C/C++ = ลดลง
   หมายเหตุ: Lua ข้อมูลคุณภาพบน GitHub น้อย อาจต้องสร้างโจทย์ Lua เพิ่มใน tasks.py เพื่อดันให้เท่า Python
