@@ -182,7 +182,8 @@ def evaluate_code(run, output, samples=8, per_family=2, device="auto", languages
                "greedy_pass": g["status"] == "pass", "greedy_status": g["status"],
                "any_pass": any(r["status"] == "pass" for r in results),
                "sample_pass_rate": sum(r["status"] == "pass" for r in results) / len(results),
-               "greedy_code": greedy, "greedy_message": g["message"]}
+               "greedy_code": greedy, "greedy_message": g["message"],
+               "sample_codes": codes, "sample_status": [r["status"] for r in results]}
         if agent:
             public = {**task, "tests": task["tests"][:PUBLIC_TESTS]}
             solved = solve(model, public, samples=samples, repair_rounds=repair_rounds, library=None)

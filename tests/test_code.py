@@ -80,25 +80,44 @@ class TaskTests(unittest.TestCase):
                 self.assertFalse(shown.startswith(call), (task["family"], task["language"], shown))
             self.assertGreaterEqual(len(task["tests"]), 6, task["family"])
 
-    def test_agent_mode_scores_on_hidden_tests(self):
+    def _agent_eval(self, fake_solve):
         class Fake:
             step = 0
             def __init__(self, *a, **k): pass
             def sample(self, prompt, n=1, temperature=0.8, greedy=False, **k):
-                # Always wrong: agent mode must report 0 and never fall back to a library.
                 return ["def f(*a):\n    return None\n"] * n
         import localbrain.coder as coder
-        original = coder.CodeModel
-        coder.CodeModel = Fake
+        saved = coder.CodeModel, coder.solve
+        coder.CodeModel, coder.solve = Fake, fake_solve
         try:
             with tempfile.TemporaryDirectory() as d:
-                report = coder.evaluate_code(d, Path(d) / "r.json", samples=1, per_family=1,
-                                             languages=("python",), agent=True, repair_rounds=0)
+                return coder.evaluate_code(d, Path(d) / "r.json", samples=1, per_family=1,
+                                           languages=("python",), agent=True, repair_rounds=0)
         finally:
-            coder.CodeModel = original
+            coder.CodeModel, coder.solve = saved
+
+    def test_agent_mode_scores_on_hidden_tests(self):
+        from localbrain.coder import PUBLIC_TESTS
+        seen_counts = []
+
+        def memorise_public(model, task, **kw):
+            # Passes every public test by lookup table, knows nothing about the hidden ones.
+            seen_counts.append(len(task["tests"]))
+            table = {repr(list(t["args"])): t["expected"] for t in task["tests"]}
+            code = f"_T = {table!r}\ndef {task['function']}(*a):\n    return _T.get(repr(list(a)), '__miss__')\n"
+            self.assertEqual(run_tests("python", code, task["function"], task["tests"])["status"], "pass")
+            return {"code": code, "status": "pass", "attempts": 1, "how": "sample"}
+
+        report = self._agent_eval(memorise_public)
+        self.assertEqual(set(seen_counts), {PUBLIC_TESTS})
         self.assertEqual(report["overall"]["agent_pass"], 0.0)
         self.assertFalse(report["prompt_example_in_tests"])
         self.assertIn("agent", report["modes"])
+
+    def test_agent_mode_counts_correct_solutions(self):
+        def reference(model, task, **kw):
+            return {"code": task["solutions"][0], "status": "pass", "attempts": 1, "how": "sample"}
+        self.assertEqual(self._agent_eval(reference)["overall"]["agent_pass"], 1.0)
 
     def test_clean_strips_fences(self):
         self.assertEqual(clean("```python\ndef f():\n    return 1\n```\nmore"), "def f():\n    return 1\n")
