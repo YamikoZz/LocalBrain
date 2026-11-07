@@ -114,6 +114,9 @@ def parser():
     code_eval.add_argument("--samples", type=int, default=8)
     code_eval.add_argument("--per-family", type=int, default=2)
     code_eval.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
+    code_eval.add_argument("--agent", action="store_true",
+                           help="Also score agent-assisted solving (public-test feedback + repair, hidden-test scoring)")
+    code_eval.add_argument("--repair-rounds", type=int, default=1)
     code = sub.add_parser("code", help="Write a function, verified against your examples")
     code.add_argument("task", help="What the function should do")
     code.add_argument("--function", required=True, help="Function name")
@@ -307,7 +310,8 @@ def main():
         elif args.command == "code-eval":
             from .coder import evaluate_code
             output = args.output or str(Path(args.run) / "code-eval.json")
-            emit(evaluate_code(args.run, output, args.samples, args.per_family, args.device))
+            emit(evaluate_code(args.run, output, args.samples, args.per_family, args.device,
+                               agent=args.agent, repair_rounds=args.repair_rounds))
         elif args.command == "code":
             from .coder import CodeModel, Library, solve
             from .tasks import LANGUAGES

@@ -158,8 +158,17 @@ def solve(model, task, samples=8, repair_rounds=1, library=None, temperature=0.8
             "message": best[1]["message"], "tests_passed": best[1]["passed"]}
 
 
-def evaluate_code(run, output, samples=8, per_family=2, device="auto", languages=("python", "javascript")):
-    """Benchmark: greedy pass@1 and pass@samples, split into seen vs unseen task families."""
+PUBLIC_TESTS = 3  # agent mode: tests the agent may see as feedback; the rest stay hidden for scoring
+
+
+def evaluate_code(run, output, samples=8, per_family=2, device="auto", languages=("python", "javascript"),
+                  agent=False, repair_rounds=1):
+    """Benchmark split into seen vs unseen task families.
+
+    model-only: greedy pass@1 and pass@samples, one answer per try, no feedback.
+    agent (optional): solve() samples, runs the PUBLIC tests and repairs from their error messages;
+    the chosen code is then scored on ALL tests, so hidden tests decide. No solution library is used.
+    """
     from .tasks import benchmark
     model = CodeModel(run, device)
     tasks = benchmark(per_family=per_family, languages=languages)
@@ -169,20 +178,35 @@ def evaluate_code(run, output, samples=8, per_family=2, device="auto", languages
         g = run_tests(task["language"], greedy, task["function"], task["tests"])
         codes = model.sample(task["prompt"], samples, 0.8)
         results = check_all(task["language"], codes, task["function"], task["tests"])
-        rows.append({"family": task["family"], "language": task["language"], "split": task["split"],
-                     "greedy_pass": g["status"] == "pass", "greedy_status": g["status"],
-                     "any_pass": any(r["status"] == "pass" for r in results),
-                     "sample_pass_rate": sum(r["status"] == "pass" for r in results) / len(results),
-                     "greedy_code": greedy, "greedy_message": g["message"]})
+        row = {"family": task["family"], "language": task["language"], "split": task["split"],
+               "greedy_pass": g["status"] == "pass", "greedy_status": g["status"],
+               "any_pass": any(r["status"] == "pass" for r in results),
+               "sample_pass_rate": sum(r["status"] == "pass" for r in results) / len(results),
+               "greedy_code": greedy, "greedy_message": g["message"]}
+        if agent:
+            public = {**task, "tests": task["tests"][:PUBLIC_TESTS]}
+            solved = solve(model, public, samples=samples, repair_rounds=repair_rounds, library=None)
+            final = run_tests(task["language"], solved["code"], task["function"], task["tests"])
+            row.update(agent_pass=final["status"] == "pass", agent_how=solved["how"],
+                       agent_attempts=solved["attempts"], agent_code=solved["code"])
+        rows.append(row)
 
     def summary(selected):
         n = len(selected)
-        return {"tasks": n,
-                "pass@1_greedy": round(sum(r["greedy_pass"] for r in selected) / n, 3) if n else None,
-                f"pass@{samples}": round(sum(r["any_pass"] for r in selected) / n, 3) if n else None,
-                "sample_pass_rate": round(sum(r["sample_pass_rate"] for r in selected) / n, 3) if n else None}
+        out = {"tasks": n,
+               "pass@1_greedy": round(sum(r["greedy_pass"] for r in selected) / n, 3) if n else None,
+               f"pass@{samples}": round(sum(r["any_pass"] for r in selected) / n, 3) if n else None,
+               "sample_pass_rate": round(sum(r["sample_pass_rate"] for r in selected) / n, 3) if n else None}
+        if agent:
+            out["agent_pass"] = round(sum(r["agent_pass"] for r in selected) / n, 3) if n else None
+        return out
 
     report = {"checkpoint_step": model.step, "run": str(run), "samples": samples,
+              "modes": {"model_only": "pass@1_greedy / pass@k: model answers alone, no feedback",
+                        "agent": (f"agent_pass: solve() with {repair_rounds} repair round(s), feedback from "
+                                  f"{PUBLIC_TESTS} public tests, scored on all tests; no library")
+                        if agent else "not run"},
+              "prompt_example_in_tests": False,
               "seconds": round(time.time() - began, 1), "overall": summary(rows)}
     for split in ("seen", "unseen"):
         for language in languages:

@@ -19,8 +19,8 @@
 | ข้อมูลเทรนหลัก | 393M tokens | ~4.0B tokens (โค้ด GitHub 110 ไฟล์ + FineWeb-Edu อังกฤษ 8 ไฟล์) |
 | เครื่อง | Colab T4 | Colab L4, bf16, Muon; วัดจริง ~23.6 วินาที/step, VRAM 9.5 GiB |
 | แผน | — | 7,600 steps ≈ 50 ชม. ≈ 97 compute units, checkpoint เก็บใน Google Drive กู้ต่อข้าม session ได้ |
-| ผล | pretrain val 2.006 → SFT val 1.741; code-eval pass@1 66.8% (โจทย์แบบที่เคยเห็น: Python 76.8%, JS 82.9%) | ยังไม่มี — จะวัดด้วย HumanEval, MBPP และโจทย์แบบใหม่ |
-| ยังทำไม่ได้ | โจทย์แบบใหม่ ~0%, เลขในหัว | — |
+| ผล | pretrain val 2.006 → SFT val 1.741; code-eval pass@1 66.8% = รวม 196 โจทย์ (แบบที่เคยเห็น 79.9%: Py 76.8%, JS 82.9%; แบบใหม่ 0%) — วัดจากโมเดลอย่างเดียว ไม่มี Agent ช่วยแก้ | ยังไม่มี — จะวัดด้วย HumanEval, MBPP และโจทย์แบบใหม่ |
+| ยังทำไม่ได้ | โจทย์แบบใหม่ ~0%, เลขในหัว, เขียน patch แก้โปรเจกต์เอง (Agent ทดสอบด้วย patch ที่เตรียมไว้เท่านั้น) | — |
 
 ขั้นของรุ่น 200M: สร้าง corpus (ตัดโทเคน) → pretrain → anneal (python-edu) → SFT (เน้น Python + Lua, JS + TS, ลด C/C++) → ทดสอบ
 ภาษาที่เทรน: โค้ด + ภาษาอังกฤษเท่านั้น

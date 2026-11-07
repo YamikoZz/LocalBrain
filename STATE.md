@@ -96,6 +96,11 @@
   loss 17.7->4.59 ใน 60 steps (เทรนได้จริง). ปิด L4 แล้ว (smoke ใช้ ~1.3 units, เหลือ 94.77)
   สรุปงบ: 4B @ batch4 ~= 50 ชม. ~= 87 units -> เกินงบ+เกิน 1 session. VRAM เหลือเยอะ batch 8/12 น่าจะเร็วกว่า (ยังไม่วัด)
   ติดหลัก: ไม่มี Drive = กู้ข้าม session ไม่ได้ -> รันยาวหลาย session ไม่ปลอดภัย. รอผู้ใช้เลือกทิศทาง (ดู report)
+- 2026-11-08 ปรับระบบวัดผล (ตามรีวิวภายนอกที่ตรวจแล้วว่าถูก): 66.8% เดิม = โมเดลอย่างเดียว รวม seen+unseen
+  (seen 79.9%, unseen 0%), ไม่ได้ใช้ Agent; ตัวอย่างใน prompt เคยเป็น 1 ใน 8 test ที่ใช้ให้คะแนน (รั่ว)
+  แก้: `make_task` ใช้ตัวอย่างนอกชุด test (ชุด test เดิมทุกข้อ ยังครบ 8/โจทย์), `code-eval --agent`
+  ให้คะแนนแยก agent_pass: solve() เห็นแค่ 3 public tests + repair, ตัดสินด้วย test ทั้งหมด, ไม่ใช้ library
+  retrain.py เรียก `--agent` แล้ว; เทสต์ 71 ข้อผ่าน. ผลรุ่น 200M จะรายงาน model-only กับ agent แยกกัน
 - 2026-11-08 ผู้ใช้เลือก A: เทรนเต็ม 7,600 steps (4B token) + Drive เก็บ checkpoint/corpus (`MyDrive/LocalBrain-200m/`)
   Drive: `colab drivemount -s NAME /content/drive` ต้องให้ผู้ใช้กดยืนยัน 1 ครั้ง/เครื่องใหม่ (เครื่องเดิม remount ไม่ต้องกด;
   restart-kernel ทำ mount หลุด ต้อง drivemount ใหม่). Git Bash ต้อง `MSYS_NO_PATHCONV=1` ไม่งั้น path เพี้ยน

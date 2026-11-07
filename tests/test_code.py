@@ -14,7 +14,7 @@ from localbrain.config import Config
 from localbrain.model import LanguageModel
 from localbrain.optim import Muon, orthogonalize
 from localbrain.runner import run_tests, toolchains
-from localbrain.tasks import F, HELD_OUT, benchmark, make_task, sft_examples
+from localbrain.tasks import F, HELD_OUT, benchmark, literal, make_task, sft_examples
 from localbrain.train import lr_scale, train
 
 CASES = [{"args": [[1, 2, 3, 4]], "expected": 6}, {"args": [[]], "expected": 0}]
@@ -71,6 +71,34 @@ class TaskTests(unittest.TestCase):
         self.assertFalse(families & HELD_OUT)
         splits = {t["split"] for t in benchmark(per_family=1)}
         self.assertEqual(splits, {"seen", "unseen"})
+
+    def test_prompt_example_is_not_a_scored_test(self):
+        for task in benchmark(per_family=2):
+            shown = task["prompt"].split("Example: ", 1)[1]
+            for t in task["tests"]:
+                call = f"{task['function']}({', '.join(literal(a, task['language']) for a in t['args'])}) returns"
+                self.assertFalse(shown.startswith(call), (task["family"], task["language"], shown))
+            self.assertGreaterEqual(len(task["tests"]), 6, task["family"])
+
+    def test_agent_mode_scores_on_hidden_tests(self):
+        class Fake:
+            step = 0
+            def __init__(self, *a, **k): pass
+            def sample(self, prompt, n=1, temperature=0.8, greedy=False, **k):
+                # Always wrong: agent mode must report 0 and never fall back to a library.
+                return ["def f(*a):\n    return None\n"] * n
+        import localbrain.coder as coder
+        original = coder.CodeModel
+        coder.CodeModel = Fake
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                report = coder.evaluate_code(d, Path(d) / "r.json", samples=1, per_family=1,
+                                             languages=("python",), agent=True, repair_rounds=0)
+        finally:
+            coder.CodeModel = original
+        self.assertEqual(report["overall"]["agent_pass"], 0.0)
+        self.assertFalse(report["prompt_example_in_tests"])
+        self.assertIn("agent", report["modes"])
 
     def test_clean_strips_fences(self):
         self.assertEqual(clean("```python\ndef f():\n    return 1\n```\nmore"), "def f():\n    return 1\n")

@@ -32,7 +32,7 @@
 | `localbrain/model.py` | Transformer v2 (RoPE, QK-Norm, RMSNorm, ReLU²) |
 | `localbrain/train.py` | เทรน / resume (`--resume`) / เริ่มจาก run อื่น (`--init`), WSD schedule |
 | `localbrain/optim.py` | Muon |
-| `localbrain/coder.py`, `runner.py`, `tasks.py` | vibe coding: เขียน → รันเทสต์ → แก้ → คลังคำตอบ, โจทย์ที่ตรวจได้ (44 แบบ, Py/JS) |
+| `localbrain/coder.py`, `runner.py`, `tasks.py` | vibe coding: เขียน → รันเทสต์ → แก้ → คลังคำตอบ, โจทย์ที่ตรวจได้ (49 แบบ = 41 seen + 8 held-out, Py/JS) |
 | `localbrain/knowledge.py`, `webtools.py` | คลัง SQLite FTS5, ค้นเว็บ + แคช |
 | `localbrain/projindex.py` | ดัชนีโปรเจกต์ระดับฟังก์ชัน (A1): `index-project`, `find-code` |
 | `localbrain/agent.py`, `experience.py` | Agent ครบ 9 ขั้น (`agent`): ค้น→สรุป→patch→เทสต์→วนแก้→จำ→รายงาน; สมองเสียบเปลี่ยนได้ (ModelBrain/ScriptedBrain) (A4) |
@@ -55,7 +55,7 @@
 
 ## สถานะ ณ 2026-11-07
 - โมเดล 20.5M: pretrain val 2.006 → SFT val 1.741
-- code-eval pass@1 66.8% แต่ **โจทย์แบบใหม่ ~0%** (ยังจำรูปแบบ ไม่ได้คิดเอง)
+- code-eval pass@1 66.8% (รวม 196 ข้อ, โมเดลอย่างเดียว ไม่มี Agent) แต่ **โจทย์แบบใหม่ 0%** (ยังจำรูปแบบ ไม่ได้คิดเอง)
 - ผู้ใช้ไม่อยากรันงานหนักบนคอมบ้านแล้ว → งานหนักไป Colab (CPU/GPU) และ GitHub Actions
 
 ## งานถัดไป (ยังไม่เริ่ม — ถามผู้ใช้ก่อนว่าจะทำข้อไหน)

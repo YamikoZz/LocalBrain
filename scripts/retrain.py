@@ -109,7 +109,7 @@ def main():
 
     # Stage 4: evaluate the new model.
     run("code-eval on new SFT",
-        ["code-eval", "--run", str(SFT), "--output", str(SFT / "code-eval.json"), "--per-family", "2"])
+        ["code-eval", "--run", str(SFT), "--output", str(SFT / "code-eval.json"), "--per-family", "2", "--agent"])
 
     log("=== 4x retrain pipeline complete ===")
 

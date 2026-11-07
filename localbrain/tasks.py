@@ -341,7 +341,8 @@ def make_task(fam, language, rng, cases=8):
     sub = lambda t: Template(t).safe_substitute(names)
     ref = fam["ref"](k)
     tests, seen = [], set()
-    for args in list(fam["edge"]) + [fam["gen"](rng, k) for _ in range(cases * 3)]:
+    candidates = list(fam["edge"]) + [fam["gen"](rng, k) for _ in range(cases * 3)]
+    for args in candidates:
         key = json.dumps(args)
         if key in seen:
             continue
@@ -350,7 +351,15 @@ def make_task(fam, language, rng, cases=8):
         if len(tests) == cases:
             break
     rng.shuffle(tests)
-    example = next((t for t in tests if t["args"] != [[]] and t["args"] != [""]), tests[0])
+    # The example shown in the prompt must not be one of the scored tests (it would leak an answer).
+    # Prefer an unused generated candidate; otherwise take one test out of the scored set.
+    plain = lambda args: args != [[]] and args != [""]
+    spare = next((a for a in candidates if json.dumps(a) not in seen and plain(a)), None)
+    if spare is not None:
+        example = {"args": spare, "expected": ref(*json.loads(json.dumps(spare)))}
+    else:
+        example = next((t for t in tests if plain(t["args"])), tests[0])
+        tests.remove(example)
     shown = ", ".join(literal(a, language) for a in example["args"])
     desc = sub(rng.choice(fam["descs"]))
     if language == "python":
