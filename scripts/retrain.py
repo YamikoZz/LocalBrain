@@ -35,6 +35,8 @@ SFT = Path("workspace/run-english-sft2")
 # 16 GiB) without touching the home-PC default. Set LOCALBRAIN_PRETRAIN_CONFIG to
 # configs/code-pretrain-colab.json on Colab; left unset it keeps the 4 GiB home settings.
 PRETRAIN_CONFIG = os.environ.get("LOCALBRAIN_PRETRAIN_CONFIG", "configs/code-pretrain-big.json")
+# Same for SFT: the home config caps VRAM at 2.8 GiB, which OOMs on Colab's first SFT batch.
+SFT_CONFIG = os.environ.get("LOCALBRAIN_SFT_CONFIG", "configs/code-sft.json")
 
 
 def log(msg):
@@ -86,7 +88,7 @@ def main():
     else:
         run("sft (short, anti-overfit; dataset now includes verified arithmetic)",
             ["train", "--data", "workspace/dataset-english-sft", "--run", str(SFT),
-             "--config", "configs/code-sft.json", "--init", str(ANNEAL / "latest.pt")])
+             "--config", SFT_CONFIG, "--init", str(ANNEAL / "latest.pt")])
 
     # Stage 4: evaluate the new model.
     run("code-eval on new SFT",
