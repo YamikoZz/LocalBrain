@@ -55,6 +55,15 @@
   ลองกับโค้ด LocalBrain เอง: 49 ไฟล์ 301 ฟังก์ชัน ใน 0.27 วินาที ไฟล์ดัชนี ~1 MB
   ค้น "resume training from a checkpoint" เจอ train.py/checkpoint_save, "split identifier into words" เจอ projindex
   จุดอ่อน: ไฟล์เทสต์มักติดอันดับต้นเพราะมีคำซ้ำเยอะ
+- 2026-11-07 Phase A รอบ A2 เสร็จ: คลังกลาง + Stack Overflow
+  `localbrain/codelib.py` สร้างคลังจาก CodeSearchNet (HF parquet `code-search-net/code_search_net`; S3 เดิมปิดแล้ว 403)
+  สร้างบน Colab CPU ~3 นาที: 571,542 ฟังก์ชัน (Python 441,885 / JS 129,657), ตัดทิ้ง 24,544, ไฟล์ 1.26 GB
+  เก็บที่ Drive `localbrain-workspace/codelib.sqlite3` (sha1 5bb3f01e…, ตรวจตรงกัน); ไม่อยู่ใน git
+  ค้น "hash a password with bcrypt" → password_hash/bcrypt_check_password, "debounce" → debounce (JS)
+  CodeSearchNet ไม่บอก license รายฟังก์ชัน → เก็บ url ต้นทางทุกชิ้น ใช้เป็นตัวอย่างอ้างอิง ไม่ก๊อปทั้งก้อน
+  `localbrain/stackexchange.py` (`ask-so`): ค้นคำตอบที่ยอมรับแล้ว แคช 30 วัน, เคารพ backoff, key จาก env ไม่ถูกเก็บ, CC BY-SA
+  ลองจริง: error "Unicode-objects must be encoded before hashing" ได้คำตอบคะแนน 441 พร้อม `.encode('utf-8')`
+  เทสต์ใหม่ 6 รายการ (รวม A1+A2 = 14 ผ่าน)
 - ข้อควรระวัง Drive: ถ้ามี folder ชื่อซ้ำ Colab จะเห็นเป็น `ชื่อ (1)` ต้อง `mv` กลับให้ชื่อตรง
 - Programming Dataset v4 (ภายนอก, 2.6M แถว / 100M คำ) มีโจทย์จริงแค่ ~38 แบบ (สูตรเลข 28 + SQL)
   `scripts/import_v4.py` คัดมา 8,360 แถว (0.35M คำ) ตรวจ Python ด้วย ast + ตัวคำนวณแบบจำกัด ไม่รันโค้ดจากชุดข้อมูล
